@@ -83,6 +83,7 @@ export class ReviewPipeline {
       status: gitRes.status,
       durationMs: gitRes.durationMs,
       error: gitRes.error,
+      output: gitRes.data,
     });
 
     if (gitRes.status === 'failed') {
@@ -100,6 +101,7 @@ export class ReviewPipeline {
       status: ciRes.status,
       durationMs: ciRes.durationMs,
       error: ciRes.error,
+      output: ciRes.data,
     });
 
     const ciStatus = ciRes.data?.status || 'unknown';
@@ -114,6 +116,7 @@ export class ReviewPipeline {
       status: mergeRes.status,
       durationMs: mergeRes.durationMs,
       error: mergeRes.error,
+      output: mergeRes.data,
     });
 
     const mergeStatus = mergeRes.data?.mergeable || 'unknown';
@@ -128,6 +131,7 @@ export class ReviewPipeline {
       status: dcoRes.status,
       durationMs: dcoRes.durationMs,
       error: dcoRes.error,
+      output: dcoRes.data,
     });
 
     const dcoStatus = dcoRes.data?.dcoStatus || 'unknown';
@@ -142,6 +146,7 @@ export class ReviewPipeline {
       status: discRes.status,
       durationMs: discRes.durationMs,
       error: discRes.error,
+      output: discRes.data,
     });
 
     const discussionSummary: DiscussionSummary = discRes.data || {
@@ -163,6 +168,7 @@ export class ReviewPipeline {
       status: ctxRes.status,
       durationMs: ctxRes.durationMs,
       error: ctxRes.error,
+      output: ctxRes.data,
     });
 
     const repositoryContext: RepositoryContext = ctxRes.data || {

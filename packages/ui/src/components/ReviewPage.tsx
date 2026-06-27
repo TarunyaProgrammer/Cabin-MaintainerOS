@@ -13,7 +13,9 @@ import {
   Cpu,
   AlertTriangle,
   ArrowLeft,
-  MessageSquare
+  MessageSquare,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { useCabinStore } from '../store';
 
@@ -233,6 +235,61 @@ export const ReviewPage: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                {(() => {
+                  const ciLog = workerLogs.find((l) => l.workerName === 'CIWorker');
+                  const ciDetails = ciLog?.output?.details || [];
+                  if (ciDetails.length === 0) return null;
+
+                  return (
+                    <div className="mt-4 pt-4 border-t border-zinc-900/60 space-y-2 select-none animate-fadeIn">
+                      <h4 className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider pl-1">CI Check Details</h4>
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                        {ciDetails.map((detail: any, index: number) => {
+                          const isFailed = detail.conclusion === 'failure' || detail.conclusion === 'timed_out' || detail.conclusion === 'action_required' || detail.status === 'failure' || detail.status === 'error';
+                          const isPending = detail.status === 'in_progress' || detail.status === 'queued' || detail.status === 'pending';
+                          
+                          return (
+                            <div key={index} className="flex items-center justify-between bg-zinc-950/60 border border-zinc-900/40 p-2.5 rounded-xl text-xs">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isFailed ? (
+                                  <XCircle className="h-4 w-4 text-rose-400 shrink-0" />
+                                ) : isPending ? (
+                                  <Clock className="h-4 w-4 text-amber-400 shrink-0 animate-pulse" />
+                                ) : (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                                )}
+                                <span className="font-mono text-[11px] text-zinc-300 truncate" title={detail.name}>
+                                  {detail.name}
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md font-mono ${
+                                  isFailed ? 'bg-rose-950/40 text-rose-400 border border-rose-900/30' :
+                                  isPending ? 'bg-amber-950/40 text-amber-400 border border-amber-900/30' :
+                                  'bg-emerald-950/40 text-emerald-400 border border-emerald-900/30'
+                                }`}>
+                                  {detail.conclusion !== 'no conclusion' ? detail.conclusion : detail.status}
+                                </span>
+                                
+                                {detail.url && (
+                                  <button 
+                                    onClick={() => window.electronAPI.openExternal(detail.url)}
+                                    className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
+                                    title="View Log Details"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {workerLogs.length > 0 && (
                   <div className="space-y-2">

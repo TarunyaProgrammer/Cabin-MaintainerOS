@@ -76,22 +76,36 @@ export class GitHubWorker {
   }
 }
 
+export interface CIDetail {
+  type: 'check_run' | 'commit_status';
+  name: string;
+  status: string;
+  conclusion: string;
+  url?: string;
+}
+
 // 3. CI Worker
 export class CIWorker {
   constructor(private githubService: GitHubService) {}
 
-  async run(owner: string, repo: string, sha: string): Promise<WorkerResult<{ status: CheckStatus; details: string[] }>> {
+  async run(owner: string, repo: string, sha: string): Promise<WorkerResult<{ status: CheckStatus; details: CIDetail[] }>> {
     const startTime = Date.now();
     try {
       const { checks, status } = await this.githubService.fetchPRChecks(owner, repo, sha);
-      const details: string[] = [];
+      const details: CIDetail[] = [];
 
       let finalStatus: CheckStatus = 'passed';
 
       // 1. Evaluate check runs
       if (checks.check_runs && checks.check_runs.length > 0) {
         for (const run of checks.check_runs) {
-          details.push(`Check Run: ${run.name} - ${run.status} (${run.conclusion || 'no conclusion'})`);
+          details.push({
+            type: 'check_run',
+            name: run.name,
+            status: run.status,
+            conclusion: run.conclusion || 'no conclusion',
+            url: run.html_url || undefined,
+          });
           if (run.conclusion === 'failure' || run.conclusion === 'timed_out' || run.conclusion === 'action_required') {
             finalStatus = 'failed';
           } else if (run.status === 'in_progress' || run.status === 'queued') {
@@ -103,7 +117,13 @@ export class CIWorker {
       // 2. Evaluate combined status
       if (status.statuses && status.statuses.length > 0) {
         for (const st of status.statuses) {
-          details.push(`Commit Status: ${st.context} - ${st.state}`);
+          details.push({
+            type: 'commit_status',
+            name: st.context,
+            status: st.state,
+            conclusion: st.state,
+            url: st.target_url || undefined,
+          });
           if (st.state === 'failure' || st.state === 'error') {
             finalStatus = 'failed';
           } else if (st.state === 'pending') {
@@ -114,7 +134,12 @@ export class CIWorker {
 
       if (details.length === 0) {
         finalStatus = 'unknown';
-        details.push('No CI workflows or commit statuses reported.');
+        details.push({
+          type: 'commit_status',
+          name: 'No CI workflows or commit statuses reported.',
+          status: 'unknown',
+          conclusion: 'unknown',
+        });
       }
 
       return {
