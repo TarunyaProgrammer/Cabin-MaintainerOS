@@ -1,6 +1,8 @@
-# Cabin — Where Maintainers Work
+# Cabin — The workspace for code reviewers
 
-> **Cabin** is a local-first development workspace and workflow orchestration platform for code maintainers. 
+![Cabin Banner](./Banner.png)
+
+> **Cabin** is a local-first development workspace and workflow orchestration platform for open-source maintainers and code reviewers.
 > 
 > *It is not "yet another AI PR reviewer." It is the operating system for code review.*
 
@@ -8,7 +10,7 @@
 
 ## 💡 The Philosophy: Workflow Orchestration > AI Reviewers
 
-The market for AI code reviewers is heavily commoditized. Modern developers already have GitHub Copilot, Claude Code, Cursor, Antigravity, and Gemini CLI embedded directly into their editors. Building a generic AI code reviewer is a race to the bottom.
+The market for AI code reviewers is heavily commoditized. Modern developers already have GitHub Copilot, Claude Code, Cursor, Antigravity, and Gemini CLI embedded directly into their editors. 
 
 **The real bottleneck for code maintainers is not the review intelligence itself—it's the workflow orchestration and context gathering.**
 
@@ -40,37 +42,60 @@ You read, decide, and click.
 
 ---
 
-## 🏗️ Architecture: Local-First Workspace
+## 🏗️ Architecture: Local-First Desktop App
 
-Cabin is designed as a **local-first web application** (React frontend + Express.js backend running on `localhost`). This architecture offers the power of a desktop application (unrestricted filesystem access, executing local CLI commands) with the ease of development of modern web technologies.
+Cabin is designed as a **clean monorepo desktop application** utilizing **Electron** to bridge the high-privilege operations of your machine (filesystem, git, process spawning) with a rich **React** UI dashboard.
 
 ```
                     ┌──────────────────────────────────┐
-                    │       Browser / Localhost        │
-                    │   React UI + Tailwind + Framer   │
+                    │       React UI (packages/ui)     │
+                    │   Tailwind + Zustand + Motion    │
                     └─────────────────┬────────────────┘
-                                      │ HTTP / SSE / WebSockets
+                                      │ Electron IPC (preload)
                     ┌─────────────────▼────────────────┐
-                    │      Local Express Server        │
-                    │   (Process Layer & Git Engine)   │
+                    │      Electron Main Process       │
+                    │      (apps/desktop/src)          │
                     └──────┬──────────┬──────────┬─────┘
                            │          │          │
          ┌─────────────────▼──┐ ┌─────▼──────┐ ┌─▼──────────────────┐
-         │ Local Filesystem   │ │ SQLite DB  │ │ CLI Runner         │
+         │ Local Filesystem   │ │ SQLite DB  │ │ CLI Spawner        │
          │ (Repo Clones)      │ │ (Settings, │ │ (Spawn git, ag,   │
          │ ~/Cabin/repos/     │ │ Cache, etc)│ │ other local tools)│
          └────────────────────┘ └────────────┘ └────────────────────┘
 ```
 
-### Why a Local Server + React UI?
-* **Zero Browser Sandboxing Limits**: The browser cannot execute terminal commands or clone repositories. The local Express server handles all high-privilege tasks.
+### Why Electron + React?
+* **Zero Browser Sandboxing Limits**: The browser cannot execute terminal commands or clone repositories. Electron's main process handles all high-privilege tasks.
 * **Private and Secure**: Your source code, credentials, and API tokens never leave your machine.
-* **No Server Costs or Complex Deployments**: Database operations use SQLite locally, meaning zero cloud infrastructure is required for Phase 1.
+* **No Server Costs or Complex Deployments**: Database operations use SQLite locally inside your home directory.
 * **Flexible CLI Integration**: Spawning the Antigravity CLI, `git`, or other linters uses Node.js `child_process.spawn()`.
 
 ---
 
-## 🚀 Key Modules (Phase 1)
+## 📦 Package Workspace Structure
+
+The project is managed as an npm workspace monorepo:
+
+```
+Dev/
+├── package.json                    # Root workspace manager and script launcher
+├── tsconfig.json                   # Shared TypeScript compiler options
+├── apps/
+│   └── desktop/                    # Electron Shell (main and preload processes)
+└── packages/
+    ├── ui/                         # React UI Frontend (Vite + Tailwind + Zustand + Router)
+    ├── database/                   # SQLite controller (sqlite3 + sqlite promise wrapper)
+    ├── github/                     # Octokit adapter for GitHub API reviews & comments
+    ├── git/                        # simple-git wrapper for repository checkouts
+    ├── workers/                    # Pipeline workers (Git, CI, DCO, Merge, Discussion, Context)
+    ├── review-engine/              # Orchestrator running pipeline workers in series
+    ├── providers/                  # AI Providers (Antigravity CLI command spawner)
+    └── shared/                     # Zod schemas, models, and TypeScript types
+```
+
+---
+
+## 🚀 How It Works
 
 ### 1. Unified Review Inbox
 Instead of the noisy GitHub notification feed, Cabin provides a focused queue representing the state of every pending PR:
@@ -84,93 +109,53 @@ When you click a PR in the dashboard, the local Git Engine performs the heavy li
 * Automatically fetches the branch and checks out the PR commits.
 * Prepares the workspace for inspection or local testing.
 
-### 3. AI & CLI Runner (The child_process Bridge)
-Cabin connects directly to your local command-line tools. When a review is triggered, the Express backend spawns the Antigravity CLI process:
-```javascript
-const { spawn } = require('child_process');
+### 3. Worker System
+Every worker has one responsibility, returning structured JSON reports back to the orchestrator:
+* **CI Worker**: Fetches GitHub combined statuses and check runs.
+* **Merge Worker**: Verifies branch mergeability and detects conflicts.
+* **DCO Worker**: Runs `git log` on the checkout and verifies DCO signatures.
+* **Discussion Worker**: Synthesizes issue and review comments into structured threads.
+* **Repository Context Worker**: Scans for README rules, contributing guides, and PR templates.
 
-function runAntigravityReview(repoPath, prNumber) {
-  return new Promise((resolve, reject) => {
-    // Spawns: ag review --pr 218
-    const process = spawn('ag', ['review', '--pr', prNumber], { cwd: repoPath });
-    let output = '';
-
-    process.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    process.on('close', (code) => {
-      if (code === 0) resolve(JSON.parse(output));
-      else reject(new Error(`CLI exited with code ${code}`));
-    });
-  });
-}
+### 4. AI CLI Runner (The child_process Bridge)
+Cabin connects directly to your local command-line tools. When a review is triggered, the Electron main process's `aiService` spawns the Antigravity CLI process:
+```typescript
+// Spawns: ag review --pr 218
+const process = spawn('ag', ['review', '--pr', prNumber], { cwd: repoPath });
 ```
-*Outputs are streamed to the React UI in real-time using Server-Sent Events (SSE) or WebSockets.*
-
-### 4. Repository Review Profiles
-Onboard a repository once and define its rules:
-* Require DCO / Commits Signed.
-* Enforce lint standards (e.g., reject `console.log`, verify Conventional Commits).
-* Require accessibility compliance.
-* Check bundle size thresholds.
+*Outputs are streamed to the React UI in real-time, giving you console progress updates.*
 
 ### 5. Automated Chores & Comment Generator
-Review findings (e.g., "Missing DCO signature" or "Unused imports") are mapped to editable markdown templates. You can click a button, preview the generated comment (optionally humanized by an LLM), and post it directly to GitHub in a single action.
+Review findings are mapped to editable markdown templates. You can click a button, preview the generated comment (optionally humanized by an LLM), and post it directly to GitHub in a single action.
 
 ---
 
-## 🗺️ Phase 1 Roadmap
-
-### 🏁 Milestone 1: Foundation (Client-Server Setup)
-- [ ] Bootstrap React app using **Vite** (Tailwind CSS, Framer Motion, TanStack Query).
-- [ ] Set up the Express.js backend with local routing.
-- [ ] Initialize the **SQLite** database locally for settings and token storage.
-- [ ] Implement the GitHub personal access token (PAT) onboarding screen.
-- [ ] Build the Review Queue UI displaying pending reviews fetched from the GitHub API.
-
-### 🏁 Milestone 2: Git Engine
-- [ ] Implement repository cloning middleware on the Express backend.
-- [ ] Orchestrate local workspace directory structure at `~/Cabin/repositories/`.
-- [ ] Build auto-fetching and check-out capabilities for PR branches.
-- [ ] Add status checks for merge conflicts and local build setup.
-
-### 🏁 Milestone 3: AI CLI Runner & Adapter
-- [ ] Create the abstract `AIProvider` process-spawning interface.
-- [ ] Implement the Antigravity CLI adapter executing via `child_process.spawn()`.
-- [ ] Add real-time stdout streaming to the UI.
-- [ ] Build the parser to display code findings categorized by severity (High, Medium, Low).
-
-### 🏁 Milestone 4: Review Workspace & Actions
-- [ ] Design the PR Timeline and Discussion summary UI.
-- [ ] Add the action panel containing single-click operations (Approve, Request Changes, Comment).
-- [ ] Implement GitHub API comment-posting hooks.
-- [ ] Validate end-to-end local review cycle on a sample repository.
-
----
-
-## 🛠️ Development Setup (Proposed)
+## 🛠️ Development Setup & How to Run
 
 ### Prerequisites
 * Node.js (v18+)
 * Git CLI installed and configured
-* GitHub Personal Access Token (with `repo` permissions)
+* GitHub Personal Access Token (PAT) (with `repo` permissions)
 
-### Quick Start
-1. **Install dependencies in root:**
+### Setup
+1. **Install dependencies:**
    ```bash
    npm install
    ```
-2. **Start the development servers (Vite + Express):**
+2. **Build the packages:**
+   Compile the monorepo workspace packages in order:
    ```bash
-   npm run dev
+   npm run build:all
    ```
-3. **Open in browser:**
-   Navigate to [http://localhost:3000](http://localhost:3000) (React Client) interacting with the backend API on [http://localhost:5000](http://localhost:5000).
 
----
-
-## 🔮 Future Vision
-* **Decision Confidence**: The system calculates the probability of PR approval based on the footprint of changed files and historical review patterns.
-* **Maintainer Habits Mapping**: Learns individual maintainer style rules over time (e.g., "Arin always rejects inline CSS").
-* **Multi-Reviewer Consensus Engine**: Runs multiple AI agents (Claude, Codex, Antigravity) concurrently and generates a unified confidence consensus.
+### Start in Development Mode
+To run Cabin locally:
+1. **Start the React dev server (Terminal 1):**
+   ```bash
+   npm run dev:ui
+   ```
+2. **Launch the Electron window (Terminal 2):**
+   ```bash
+   npm run dev:desktop
+   ```
+   Electron will boot up and load the React UI running on `http://localhost:5173`.

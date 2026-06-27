@@ -1,0 +1,22 @@
+{
+  "name": "cabin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cabin - The workspace for code reviewers",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:all": "npm run build -w packages/shared && npm run build -w packages/database && npm run build -w packages/git && npm run build -w packages/github && npm run build -w packages/workers && npm run build -w packages/providers && npm run build -w packages/review-engine && npm run build -w apps/desktop && npm run build -w packages/ui",
+    "dev:ui": "npm run dev -w packages/ui",
+    "dev:desktop": "npm run build -w apps/desktop && npm run start -w apps/desktop",
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "start": "npm run start --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

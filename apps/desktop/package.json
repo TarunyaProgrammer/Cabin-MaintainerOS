@@ -1,0 +1,21 @@
+{
+  "name": "cabin-desktop",
+  "version": "0.1.0",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "electron dist/main.js"
+  },
+  "dependencies": {
+    "@cabin/shared": "*",
+    "@cabin/database": "*",
+    "@cabin/github": "*",
+    "@cabin/git": "*",
+    "@cabin/review-engine": "*",
+    "@cabin/providers": "*",
+    "electron-is-dev": "^2.0.0"
+  },
+  "devDependencies": {
+    "electron": "^28.2.0"
+  }
+}
