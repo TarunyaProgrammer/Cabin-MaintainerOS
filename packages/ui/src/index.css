@@ -4,11 +4,11 @@
 
 @layer base {
   body {
-    @apply bg-darkBg text-zinc-100 antialiased select-none;
+    @apply bg-appBg text-slate-800 antialiased select-none;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  /* Custom scrollbars for a premium dark interface */
+  /* Custom scrollbars for a premium clean interface */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -19,161 +19,78 @@
   }
   
   ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-800 rounded-full transition-colors duration-150;
+    @apply bg-slate-200 rounded-full transition-colors duration-150;
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-zinc-700;
+    @apply bg-slate-300;
   }
 }
 
 @layer utilities {
-  /* Claymorphic Cards */
-  .clay-card {
-    background: rgba(24, 24, 27, 0.8);
-    border-radius: 20px;
-    box-shadow: 
-      0 12px 24px rgba(0, 0, 0, 0.5),
-      inset 2px 2px 4px rgba(255, 255, 255, 0.06),
-      inset -6px -6px 12px rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.02);
+  /* Minimal & Rounded Premium Cards */
+  .ui-card {
+    @apply bg-appSurface rounded-3xl border border-appBorder shadow-[0_8px_30px_rgb(15,23,42,0.03)];
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
   
-  .clay-card:hover {
-    background: rgba(30, 30, 36, 0.85);
-    border-color: rgba(255, 255, 255, 0.04);
+  .ui-card:hover {
+    @apply shadow-[0_15px_35px_rgb(15,23,42,0.06)];
     transform: translateY(-2px);
-    box-shadow: 
-      0 20px 32px rgba(0, 0, 0, 0.6),
-      inset 3px 3px 6px rgba(255, 255, 255, 0.1),
-      inset -8px -8px 16px rgba(0, 0, 0, 0.5);
   }
 
-  .clay-card-indigo {
-    background: rgba(49, 46, 129, 0.3);
-    border-radius: 20px;
-    box-shadow: 
-      0 12px 24px rgba(99, 102, 241, 0.15),
-      inset 2px 2px 4px rgba(255, 255, 255, 0.15),
-      inset -6px -6px 12px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(99, 102, 241, 0.2);
+  .ui-card-indigo {
+    @apply bg-brandGreenLight rounded-3xl border border-emerald-100 shadow-[0_8px_30px_rgb(16,185,129,0.02)];
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .clay-card-indigo:hover {
-    background: rgba(49, 46, 129, 0.4);
-    border-color: rgba(99, 102, 241, 0.35);
+  .ui-card-indigo:hover {
+    @apply border-emerald-200 shadow-[0_15px_35px_rgb(16,185,129,0.05)];
     transform: translateY(-2px);
-    box-shadow: 
-      0 20px 32px rgba(99, 102, 241, 0.25),
-      inset 3px 3px 6px rgba(255, 255, 255, 0.25),
-      inset -8px -8px 16px rgba(0, 0, 0, 0.6);
   }
 
-  /* Claymorphic Buttons */
-  .clay-button-primary {
-    background: #4f46e5;
-    border-radius: 12px;
-    box-shadow: 
-      0 6px 12px rgba(79, 70, 229, 0.3),
-      inset 2px 2px 3px rgba(255, 255, 255, 0.4),
-      inset -4px -4px 8px rgba(0, 0, 0, 0.4);
-    color: #ffffff;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .clay-button-primary:hover:not(:disabled) {
-    background: #6366f1;
-    transform: translateY(-1px) scale(1.02);
-    box-shadow: 
-      0 10px 20px rgba(79, 70, 229, 0.45),
-      inset 3px 3px 5px rgba(255, 255, 255, 0.55),
-      inset -6px -6px 12px rgba(0, 0, 0, 0.4);
-  }
-  .clay-button-primary:active:not(:disabled) {
-    transform: translateY(1px) scale(0.98);
-    box-shadow: 
-      0 2px 4px rgba(79, 70, 229, 0.2),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.2),
-      inset -2px -2px 4px rgba(0, 0, 0, 0.4);
-  }
-
-  .clay-button-secondary {
-    background: #27272a;
-    border-radius: 12px;
-    box-shadow: 
-      0 4px 8px rgba(0, 0, 0, 0.3),
-      inset 1.5px 1.5px 2px rgba(255, 255, 255, 0.15),
-      inset -4px -4px 8px rgba(0, 0, 0, 0.5);
-    color: #e4e4e7;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .clay-button-secondary:hover:not(:disabled) {
-    background: #3f3f46;
-    transform: translateY(-1px) scale(1.02);
-    box-shadow: 
-      0 8px 16px rgba(0, 0, 0, 0.4),
-      inset 2.5px 2.5px 4px rgba(255, 255, 255, 0.25),
-      inset -6px -6px 12px rgba(0, 0, 0, 0.5);
-  }
-
-  .clay-button-rose {
-    background: #be123c;
-    border-radius: 12px;
-    box-shadow: 
-      0 6px 12px rgba(190, 18, 60, 0.3),
-      inset 2px 2px 3px rgba(255, 255, 255, 0.35),
-      inset -4px -4px 8px rgba(0, 0, 0, 0.4);
-    color: #ffe4e6;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .clay-button-rose:hover:not(:disabled) {
-    background: #e11d48;
-    transform: translateY(-1px) scale(1.02);
-    box-shadow: 
-      0 10px 20px rgba(190, 18, 60, 0.45),
-      inset 3px 3px 5px rgba(255, 255, 255, 0.45),
-      inset -6px -6px 12px rgba(0, 0, 0, 0.4);
-  }
-
-  .clay-button-emerald {
-    background: #047857;
-    border-radius: 12px;
-    box-shadow: 
-      0 6px 12px rgba(4, 120, 87, 0.3),
-      inset 2px 2px 3px rgba(255, 255, 255, 0.35),
-      inset -4px -4px 8px rgba(0, 0, 0, 0.4);
-    color: #ecfdf5;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .clay-button-emerald:hover:not(:disabled) {
-    background: #059669;
-    transform: translateY(-1px) scale(1.02);
-    box-shadow: 
-      0 10px 20px rgba(4, 120, 87, 0.45),
-      inset 3px 3px 5px rgba(255, 255, 255, 0.45),
-      inset -6px -6px 12px rgba(0, 0, 0, 0.4);
-  }
-
-  /* Claymorphic Input & Textarea */
-  .clay-input {
-    background: rgba(9, 9, 11, 0.6);
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 
-      inset 2px 2px 5px rgba(0, 0, 0, 0.5),
-      inset -1px -1px 2px rgba(255, 255, 255, 0.05);
+  /* Minimal & Rounded Premium Buttons */
+  .ui-button-primary {
+    @apply bg-brandGreen text-white rounded-xl px-5 py-2.5 text-xs font-semibold shadow-[0_4px_12px_rgba(15,118,110,0.15)];
     transition: all 0.2s ease;
   }
-  .clay-input:focus {
-    border-color: rgba(99, 102, 241, 0.4);
-    box-shadow: 
-      0 0 8px rgba(99, 102, 241, 0.2),
-      inset 2px 2px 5px rgba(0, 0, 0, 0.6),
-      inset -1px -1px 2px rgba(255, 255, 255, 0.08);
+  .ui-button-primary:hover:not(:disabled) {
+    @apply bg-brandGreenHover shadow-[0_6px_16px_rgba(15,118,110,0.25)];
+  }
+  .ui-button-primary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .ui-button-secondary {
+    @apply bg-appSurface text-slate-700 rounded-xl px-5 py-2.5 text-xs font-semibold border border-slate-200 shadow-sm;
+    transition: all 0.2s ease;
+  }
+  .ui-button-secondary:hover:not(:disabled) {
+    @apply bg-slate-50 border-slate-300 text-slate-900;
+  }
+
+  .ui-button-rose {
+    @apply bg-rose-600 text-white rounded-xl px-5 py-2.5 text-xs font-semibold shadow-[0_4px_12px_rgba(225,29,72,0.15)];
+    transition: all 0.2s ease;
+  }
+  .ui-button-rose:hover:not(:disabled) {
+    @apply bg-rose-700;
+  }
+
+  .ui-button-emerald {
+    @apply bg-emerald-600 text-white rounded-xl px-5 py-2.5 text-xs font-semibold shadow-[0_4px_12px_rgba(16,185,129,0.15)];
+    transition: all 0.2s ease;
+  }
+  .ui-button-emerald:hover:not(:disabled) {
+    @apply bg-emerald-700;
+  }
+
+  /* Minimal & Rounded Premium Inputs */
+  .ui-input {
+    @apply bg-appSurface text-slate-800 rounded-xl border border-slate-200 px-4 py-3 text-xs outline-none shadow-sm;
+    transition: all 0.2s ease;
+  }
+  .ui-input:focus {
+    @apply border-brandGreen ring-1 ring-brandGreen;
   }
 }

@@ -8,12 +8,14 @@ export default {
   theme: {
     extend: {
       colors: {
-        darkBg: '#09090b',         // Premium dark background (Linear/Raycast inspired)
-        darkSurface: '#18181b',    // Card/component surface background
-        darkBorder: '#27272a',     // Subtle border color
-        darkMuted: '#71717a',      // Muted text color
-        brandPrimary: '#3f3f46',   // Neutral primary
-        brandAccent: '#f4f4f5',    // Accent color for active elements
+        appBg: '#f8fafc',         // Premium soft background
+        appSurface: '#ffffff',    // Crisp white cards
+        appBorder: '#f1f5f9',     // Very light gray border (slate-100)
+        brandGreen: '#0f766e',    // Vibrant forest green (teal-700)
+        brandGreenHover: '#115e59', // Darker green for hovers (teal-800)
+        brandGreenLight: '#f0fdf4', // Light green highlight (emerald-50)
+        brandOrange: '#f97316',   // Warning orange
+        brandOrangeLight: '#fff7ed', // Warning light highlight
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
