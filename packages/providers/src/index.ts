@@ -180,46 +180,60 @@ export class AntigravityProvider implements AIProvider {
 
   private async runSimulation(onLog: (data: string) => void): Promise<ReviewResult> {
     onLog('[Cabin Simulation] Connecting to Antigravity CLI mock channel...\n');
-    await new Promise(r => setTimeout(r, 800));
-    onLog('[Cabin Simulation] Fetching PR diff from GitHub...\n');
     await new Promise(r => setTimeout(r, 600));
-    onLog('[Cabin Simulation] Scanning 4 files: src/auth.ts, src/components/Login.tsx, package.json\n');
-    await new Promise(r => setTimeout(r, 1000));
-    onLog('[Cabin Simulation] Found potential duplicate hook in src/components/Login.tsx:42\n');
-    await new Promise(r => setTimeout(r, 600));
+    onLog('[Cabin Simulation] Fetching PR diff and files from GitHub...\n');
+    await new Promise(r => setTimeout(r, 500));
+    onLog('[Cabin Simulation] Executing metrics evaluation suite across 8 core areas:\n');
+    
+    const areas = [
+      'Functionality (does it work correctly?)',
+      'Code Quality (is code readable & maintainable?)',
+      'Repository Consistency (matches existing architecture)',
+      'Dependencies (no unnecessary additions)',
+      'Performance (no regressions)',
+      'Accessibility (UI remains accessible)',
+      'Responsiveness (mobile compatibility)',
+      'Security (no obvious vulnerabilities)'
+    ];
+
+    for (const area of areas) {
+      onLog(`[Cabin Simulation] Evaluating: ${area} ... OK\n`);
+      await new Promise(r => setTimeout(r, 300));
+    }
+
     onLog('[Cabin Simulation] Building review report...\n');
     await new Promise(r => setTimeout(r, 400));
-    onLog('[Cabin Simulation] Completed successfully.\n');
+    onLog('[Cabin Simulation] Review pipeline completed.\n');
 
     return {
-      summary: 'Adds a custom authorization hook and cleans up unused imports in the Login flow. The changes are largely safe, but we identified a duplicate helper in Login.tsx that should be extracted.',
-      overallRisk: 'medium',
-      confidence: 92,
+      summary: 'Cabin analyzed the repository against the 8 review metrics. The overall code structure is solid and aligns with existing conventions. We found a few minor points regarding performance optimizations and accessibility guidelines that can be improved.',
+      overallRisk: 'low',
+      confidence: 96,
       highSeverityFindings: [],
       mediumSeverityFindings: [
         {
-          file: 'src/components/Login.tsx',
-          line: 42,
-          codeSnippet: 'const useAuthStatus = () => { ... }',
-          description: 'Duplicate hook detected. A identical useAuthStatus hook is already defined in hooks/useAuth.ts. Import that instead to avoid redundancy.',
+          file: 'src/components/ReviewPage.tsx',
+          line: 145,
+          codeSnippet: '<button onClick={() => navigate("/queue")}>',
+          description: '[Accessibility] Interactive button element is missing a descriptive aria-label or accessible text helper.',
           severity: 'medium',
-          suggestion: "import { useAuthStatus } from '../hooks/useAuth';",
+          suggestion: 'Add aria-label="Back to queue" to the button element.',
         },
       ],
       lowSeverityFindings: [
         {
-          file: 'src/auth.ts',
-          line: 5,
-          codeSnippet: "import { getApp } from 'firebase/app';",
-          description: 'Unused import statement. Clean up imports to maintain code clarity.',
+          file: 'packages/ui/tailwind.config.js',
+          line: 14,
+          codeSnippet: "brandGreen: '#0f766e'",
+          description: '[Repository Consistency] Color palette utilizes slate gray and forest green. Ensure consistency with standard theme documentation.',
           severity: 'low',
-          suggestion: 'Remove line 5.',
+          suggestion: 'Double check with global design tokens.',
         },
       ],
-      filesMentioned: ['src/components/Login.tsx', 'src/auth.ts'],
+      filesMentioned: ['src/components/ReviewPage.tsx', 'packages/ui/tailwind.config.js'],
       suggestions: [
-        'Reuse the custom hook in hooks/useAuth.ts.',
-        'Delete unused imports.',
+        'Add accessible labels to back navigation buttons.',
+        'Validate responsiveness on mobile breakpoints for the new sidebar controls.',
       ],
       estimatedApprovalRecommendation: 'approve',
     };

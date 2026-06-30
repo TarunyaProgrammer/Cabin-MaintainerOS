@@ -169,13 +169,21 @@ function setupIpcHandlers() {
       const ghService = new GitHubService(token);
       const pipeline = new ReviewPipeline(gitService, ghService, reposDir);
 
+      let activeBranch = branchName;
+      let activeTarget = targetBranch;
+      if (!activeBranch || !activeTarget) {
+        const details = await ghService.fetchPRDetails(owner, repoName, prNumber);
+        activeBranch = details.head.ref;
+        activeTarget = details.base.ref || 'main';
+      }
+
       // Run pipeline, notify UI of state updates
       const result = await pipeline.execute(
         owner,
         repoName,
         prNumber,
-        branchName,
-        targetBranch,
+        activeBranch,
+        activeTarget,
         (progress: any) => {
           if (mainWindow) {
             mainWindow.webContents.send('review:progress-update', progress);
@@ -262,6 +270,100 @@ function setupIpcHandlers() {
         workerLogs: [],
       };
       await db.saveReviewSession(reviewSession);
+    }
+  );
+
+  ipcMain.handle(
+    'github:add-labels',
+    async (_event: any, owner: string, repo: string, prNumber: number, labels: string[]) => {
+      if (!db) throw new Error('Database not initialized');
+      const settings = await db.getSettings();
+      const ghService = new GitHubService(settings.githubToken);
+      await ghService.addLabels(owner, repo, prNumber, labels);
+    }
+  );
+
+  ipcMain.handle(
+    'github:remove-label',
+    async (_event: any, owner: string, repo: string, prNumber: number, labelName: string) => {
+      if (!db) throw new Error('Database not initialized');
+      const settings = await db.getSettings();
+      const ghService = new GitHubService(settings.githubToken);
+      await ghService.removeLabel(owner, repo, prNumber, labelName);
+    }
+  );
+
+  ipcMain.handle(
+    'github:add-assignees',
+    async (_event: any, owner: string, repo: string, prNumber: number, assignees: string[]) => {
+      if (!db) throw new Error('Database not initialized');
+      const settings = await db.getSettings();
+      const ghService = new GitHubService(settings.githubToken);
+      await ghService.addAssignees(owner, repo, prNumber, assignees);
+    }
+  );
+
+  ipcMain.handle(
+    'github:remove-assignees',
+    async (_event: any, owner: string, repo: string, prNumber: number, assignees: string[]) => {
+      if (!db) throw new Error('Database not initialized');
+      const settings = await db.getSettings();
+      const ghService = new GitHubService(settings.githubToken);
+      await ghService.removeAssignees(owner, repo, prNumber, assignees);
+    }
+  );
+
+  ipcMain.handle(
+    'github:fetch-pr-details',
+    async (_event: any, owner: string, repo: string, prNumber: number) => {
+      if (!db) throw new Error('Database not initialized');
+      const settings = await db.getSettings();
+      const ghService = new GitHubService(settings.githubToken);
+      const prDetails = await ghService.fetchPRDetails(owner, repo, prNumber);
+      
+      const pr = {
+        id: `${owner}/${repo}/${prNumber}`,
+        prNumber,
+        repositoryId: `${owner}/${repo}`,
+        repoName: repo,
+        repoOwner: owner,
+        title: prDetails.title,
+        author: prDetails.user?.login || 'unknown',
+        authorAvatarUrl: prDetails.user?.avatar_url || undefined,
+        requestedDate: prDetails.created_at,
+        labels: prDetails.labels?.map((l: any) => l.name) || [],
+        ciStatus: 'unknown',
+        mergeConflictStatus: 'unknown',
+        dcoStatus: 'unknown',
+        lastUpdated: prDetails.updated_at,
+        aiStatus: 'pending',
+        reviewStatus: 'pending',
+        branchName: prDetails.head.ref,
+        targetBranch: prDetails.base.ref || 'main',
+        description: prDetails.body || '',
+        assignees: prDetails.assignees?.map((a: any) => a.login) || [],
+      };
+      return pr;
+    }
+  );
+
+  ipcMain.handle(
+    'github:get-repo-labels',
+    async (_event: any, owner: string, repo: string) => {
+      if (!db) throw new Error('Database not initialized');
+      const settings = await db.getSettings();
+      const ghService = new GitHubService(settings.githubToken);
+      return await ghService.getRepoLabels(owner, repo);
+    }
+  );
+
+  ipcMain.handle(
+    'github:get-repo-assignees',
+    async (_event: any, owner: string, repo: string) => {
+      if (!db) throw new Error('Database not initialized');
+      const settings = await db.getSettings();
+      const ghService = new GitHubService(settings.githubToken);
+      return await ghService.getRepoAssignees(owner, repo);
     }
   );
 

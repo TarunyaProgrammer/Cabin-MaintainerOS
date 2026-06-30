@@ -90,6 +90,8 @@ export const PullRequestSchema = z.object({
   reviewStatus: z.enum(['approve', 'request_changes', 'comment', 'pending']).default('pending'),
   branchName: z.string(),
   targetBranch: z.string().default('main'),
+  description: z.string().optional(),
+  assignees: z.array(z.string()).default([]),
 });
 export type PullRequest = z.infer<typeof PullRequestSchema>;
 

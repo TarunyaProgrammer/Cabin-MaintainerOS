@@ -40,6 +40,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     commentText: string
   ): Promise<void> => ipcRenderer.invoke('github:submit-review', owner, repo, prNumber, action, commentText),
 
+  addLabels: (owner: string, repo: string, prNumber: number, labels: string[]): Promise<void> =>
+    ipcRenderer.invoke('github:add-labels', owner, repo, prNumber, labels),
+  removeLabel: (owner: string, repo: string, prNumber: number, labelName: string): Promise<void> =>
+    ipcRenderer.invoke('github:remove-label', owner, repo, prNumber, labelName),
+  addAssignees: (owner: string, repo: string, prNumber: number, assignees: string[]): Promise<void> =>
+    ipcRenderer.invoke('github:add-assignees', owner, repo, prNumber, assignees),
+  removeAssignees: (owner: string, repo: string, prNumber: number, assignees: string[]): Promise<void> =>
+    ipcRenderer.invoke('github:remove-assignees', owner, repo, prNumber, assignees),
+  fetchPRDetails: (owner: string, repo: string, prNumber: number): Promise<any> =>
+    ipcRenderer.invoke('github:fetch-pr-details', owner, repo, prNumber),
+  getRepoLabels: (owner: string, repo: string): Promise<string[]> =>
+    ipcRenderer.invoke('github:get-repo-labels', owner, repo),
+  getRepoAssignees: (owner: string, repo: string): Promise<string[]> =>
+    ipcRenderer.invoke('github:get-repo-assignees', owner, repo),
+
   // Utilities
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('util:open-external', url),
   openLocalFolder: (localPath: string): Promise<void> => ipcRenderer.invoke('util:open-folder', localPath),

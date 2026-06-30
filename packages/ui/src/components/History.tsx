@@ -8,9 +8,11 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { useCabinStore } from '../store';
+import { useNavigate } from 'react-router-dom';
 
 export const History: React.FC = () => {
   const { history, loadingHistory, loadHistory } = useCabinStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadHistory();
@@ -110,6 +112,16 @@ export const History: React.FC = () => {
               <div className="flex items-center gap-3 shrink-0">
                 {getDecisionBadge(session.decision)}
                 
+                <button 
+                  onClick={() => {
+                    navigate(`/review/${session.prNumber}?owner=${session.repoOwner}&repo=${session.repoName}`);
+                  }}
+                  className="px-2.5 py-1 text-[10px] font-bold bg-zinc-50 border border-zinc-200 text-zinc-650 rounded-md hover:bg-zinc-100 transition-colors"
+                  title="Re-review Pull Request"
+                >
+                  Re-review
+                </button>
+
                 <button 
                   onClick={() => {
                     const url = `https://github.com/${session.repoOwner}/${session.repoName}/pull/${session.prNumber}`;

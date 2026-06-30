@@ -34,9 +34,14 @@ interface CabinStore {
   // Active Review State
   activeReview: ActiveReviewState;
   setActiveReviewPR: (pr: PullRequest) => void;
+  fetchAndSetActivePR: (owner: string, repo: string, prNumber: number) => Promise<void>;
   prepareActiveReview: () => Promise<void>;
   runAIReview: () => Promise<void>;
   submitReviewDecision: (action: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', comment: string) => Promise<void>;
+  addLabels: (labels: string[]) => Promise<void>;
+  removeLabel: (labelName: string) => Promise<void>;
+  addAssignees: (assignees: string[]) => Promise<void>;
+  removeAssignees: (assignees: string[]) => Promise<void>;
   resetActiveReview: () => void;
 }
 
@@ -140,6 +145,29 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
         aiLogs: '',
       },
     }));
+  },
+
+  fetchAndSetActivePR: async (owner, repo, prNumber) => {
+    try {
+      const pr = await window.electronAPI.fetchPRDetails(owner, repo, prNumber);
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          pullRequest: pr,
+          discussionSummary: null,
+          repositoryContext: null,
+          workerLogs: [],
+          localPath: '',
+          aiReviewResult: null,
+          pipelineRunning: false,
+          pipelineProgress: null,
+          aiRunning: false,
+          aiLogs: '',
+        },
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
   },
 
   prepareActiveReview: async () => {
@@ -280,6 +308,78 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
       // Refresh history & reviews
       await get().loadHistory();
       await get().fetchReviews();
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  addLabels: async (labels) => {
+    const { pullRequest } = get().activeReview;
+    if (!pullRequest) return;
+    try {
+      await window.electronAPI.addLabels(pullRequest.repoOwner, pullRequest.repoName, pullRequest.prNumber, labels);
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          pullRequest: state.activeReview.pullRequest
+            ? { ...state.activeReview.pullRequest, labels: [...state.activeReview.pullRequest.labels, ...labels] }
+            : null,
+        },
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  removeLabel: async (labelName) => {
+    const { pullRequest } = get().activeReview;
+    if (!pullRequest) return;
+    try {
+      await window.electronAPI.removeLabel(pullRequest.repoOwner, pullRequest.repoName, pullRequest.prNumber, labelName);
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          pullRequest: state.activeReview.pullRequest
+            ? { ...state.activeReview.pullRequest, labels: state.activeReview.pullRequest.labels.filter((l) => l !== labelName) }
+            : null,
+        },
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  addAssignees: async (assignees) => {
+    const { pullRequest } = get().activeReview;
+    if (!pullRequest) return;
+    try {
+      await window.electronAPI.addAssignees(pullRequest.repoOwner, pullRequest.repoName, pullRequest.prNumber, assignees);
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          pullRequest: state.activeReview.pullRequest
+            ? { ...state.activeReview.pullRequest, assignees: [...state.activeReview.pullRequest.assignees, ...assignees] }
+            : null,
+        },
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  removeAssignees: async (assignees) => {
+    const { pullRequest } = get().activeReview;
+    if (!pullRequest) return;
+    try {
+      await window.electronAPI.removeAssignees(pullRequest.repoOwner, pullRequest.repoName, pullRequest.prNumber, assignees);
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          pullRequest: state.activeReview.pullRequest
+            ? { ...state.activeReview.pullRequest, assignees: state.activeReview.pullRequest.assignees.filter((a: string) => !assignees.includes(a)) }
+            : null,
+        },
+      }));
     } catch (err: any) {
       set({ error: err.message });
     }

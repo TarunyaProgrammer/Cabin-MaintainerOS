@@ -73,9 +73,19 @@ export class CabinDatabase {
         ai_status TEXT NOT NULL,
         review_status TEXT NOT NULL,
         branch_name TEXT NOT NULL,
-        target_branch TEXT NOT NULL
+        target_branch TEXT NOT NULL,
+        description TEXT,
+        assignees_json TEXT
       );
     `);
+
+    // Alter table migrations to add new columns if they do not exist
+    try {
+      await this.db.exec(`ALTER TABLE cached_pull_requests ADD COLUMN description TEXT`);
+    } catch {}
+    try {
+      await this.db.exec(`ALTER TABLE cached_pull_requests ADD COLUMN assignees_json TEXT`);
+    } catch {}
 
     // Seed default settings if empty
     const settingsCount = await this.db.get<{ count: number }>('SELECT COUNT(*) as count FROM settings');
@@ -205,7 +215,7 @@ export class CabinDatabase {
       author: row.author,
       authorAvatarUrl: row.author_avatar_url || undefined,
       requestedDate: row.requested_date,
-      labels: JSON.parse(row.labels_json),
+      labels: JSON.parse(row.labels_json || '[]'),
       ciStatus: row.ci_status,
       mergeConflictStatus: row.merge_conflict_status,
       dcoStatus: row.dco_status,
@@ -214,6 +224,8 @@ export class CabinDatabase {
       reviewStatus: row.review_status,
       branchName: row.branch_name,
       targetBranch: row.target_branch,
+      description: row.description || '',
+      assignees: JSON.parse(row.assignees_json || '[]'),
     }));
   }
 
@@ -221,17 +233,20 @@ export class CabinDatabase {
     const db = this.getDb();
     await db.run('DELETE FROM cached_pull_requests');
     
-    if (prs.length === 0) return;
+    // Deduplicate pull requests to prevent UNIQUE constraint errors
+    const uniquePrs = prs.filter((pr, idx, self) => self.findIndex(p => p.id === pr.id) === idx);
+    
+    if (uniquePrs.length === 0) return;
 
     const stmt = await db.prepare(`
       INSERT INTO cached_pull_requests (
         id, pr_number, repository_id, repo_name, repo_owner, title, author, author_avatar_url, 
         requested_date, labels_json, ci_status, merge_conflict_status, dco_status, last_updated, 
-        ai_status, review_status, branch_name, target_branch
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ai_status, review_status, branch_name, target_branch, description, assignees_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    for (const pr of prs) {
+    for (const pr of uniquePrs) {
       await stmt.run(
         pr.id,
         pr.prNumber,
@@ -250,7 +265,9 @@ export class CabinDatabase {
         pr.aiStatus,
         pr.reviewStatus,
         pr.branchName,
-        pr.targetBranch
+        pr.targetBranch,
+        pr.description || null,
+        JSON.stringify(pr.assignees || [])
       );
     }
     await stmt.finalize();

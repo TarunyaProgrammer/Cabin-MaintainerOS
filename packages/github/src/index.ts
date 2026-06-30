@@ -73,6 +73,8 @@ export class GitHubService {
         reviewStatus: 'pending',
         branchName: prDetail.head.ref,
         targetBranch: prDetail.base.ref,
+        description: prDetail.body || '',
+        assignees: prDetail.assignees?.map((a: any) => a.login) || [],
       });
     }
 
@@ -208,5 +210,65 @@ export class GitHubService {
       event,
       body,
     });
+  }
+
+  async addLabels(owner: string, repo: string, prNumber: number, labels: string[]): Promise<void> {
+    const octokit = this.getOctokit();
+    await octokit.rest.issues.addLabels({
+      owner,
+      repo,
+      issue_number: prNumber,
+      labels,
+    });
+  }
+
+  async removeLabel(owner: string, repo: string, prNumber: number, labelName: string): Promise<void> {
+    const octokit = this.getOctokit();
+    await octokit.rest.issues.removeLabel({
+      owner,
+      repo,
+      issue_number: prNumber,
+      name: labelName,
+    });
+  }
+
+  async addAssignees(owner: string, repo: string, prNumber: number, assignees: string[]): Promise<void> {
+    const octokit = this.getOctokit();
+    await octokit.rest.issues.addAssignees({
+      owner,
+      repo,
+      issue_number: prNumber,
+      assignees,
+    });
+  }
+
+  async removeAssignees(owner: string, repo: string, prNumber: number, assignees: string[]): Promise<void> {
+    const octokit = this.getOctokit();
+    await octokit.rest.issues.removeAssignees({
+      owner,
+      repo,
+      issue_number: prNumber,
+      assignees,
+    });
+  }
+
+  async getRepoLabels(owner: string, repo: string): Promise<string[]> {
+    const octokit = this.getOctokit();
+    const { data } = await octokit.rest.issues.listLabelsForRepo({
+      owner,
+      repo,
+      per_page: 100,
+    });
+    return data.map((l: any) => l.name);
+  }
+
+  async getRepoAssignees(owner: string, repo: string): Promise<string[]> {
+    const octokit = this.getOctokit();
+    const { data } = await octokit.rest.issues.listAssignees({
+      owner,
+      repo,
+      per_page: 100,
+    });
+    return data.map((u: any) => u.login);
   }
 }

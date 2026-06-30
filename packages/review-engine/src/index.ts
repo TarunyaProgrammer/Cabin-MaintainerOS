@@ -199,6 +199,8 @@ export class ReviewPipeline {
       reviewStatus: 'pending',
       branchName,
       targetBranch: prDetails.base.ref || 'main',
+      description: prDetails.body || '',
+      assignees: prDetails.assignees?.map((a: any) => a.login) || [],
     };
 
     onProgress({ stepName: 'Review Pipeline Complete', progress: 100, status: 'success' });

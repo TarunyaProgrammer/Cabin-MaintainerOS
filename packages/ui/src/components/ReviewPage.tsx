@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   GitPullRequest, 
@@ -19,6 +19,41 @@ import {
 } from 'lucide-react';
 import { useCabinStore } from '../store';
 
+const renderMarkdown = (text: string) => {
+  if (!text) return null;
+  
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Restore details and summary tags
+  html = html
+    .replace(/&lt;details&gt;/g, '<details class="mt-2 bg-zinc-150/40 p-3 rounded-xl border border-zinc-200/50 block">')
+    .replace(/&lt;\/details&gt;/g, '</details>')
+    .replace(/&lt;summary&gt;/g, '<summary class="font-bold cursor-pointer outline-none text-zinc-800 list-none flex items-center gap-1">')
+    .replace(/&lt;\/summary&gt;/g, '</summary>');
+
+  html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-zinc-50 border border-zinc-200 p-3 rounded-lg overflow-x-auto font-mono text-[10px] my-2 select-text">$1</pre>');
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-zinc-150 px-1 py-0.5 rounded font-mono text-[10px] text-rose-600 select-text">$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/^###\s+(.+)$/gm, '<h4 class="text-xs font-bold text-zinc-850 mt-3 mb-1 pl-0.5">$1</h4>');
+  html = html.replace(/^##\s+(.+)$/gm, '<h3 class="text-sm font-bold text-zinc-900 mt-4 mb-2 pl-0.5">$1</h3>');
+  html = html.replace(/^#\s+(.+)$/gm, '<h2 class="text-base font-bold text-zinc-900 mt-5 mb-2 pl-0.5">$1</h2>');
+  html = html.replace(/^\s*-\s+(.+)$/gm, '<li class="ml-4 list-disc pl-1">$1</li>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-brandGreen hover:underline">$1</a>');
+
+  const lines = html.split('\n\n').map(p => {
+    const trimmed = p.trim();
+    if (trimmed.startsWith('<li') || trimmed.startsWith('<pre') || trimmed.startsWith('<h') || trimmed.startsWith('<details') || trimmed.startsWith('</details>')) {
+      return p;
+    }
+    return `<p class="mb-2 leading-relaxed">${p}</p>`;
+  }).join('\n');
+
+  return <div className="markdown-content select-text leading-relaxed text-zinc-700 text-xs" dangerouslySetInnerHTML={{ __html: lines }} />;
+};
+
 export const ReviewPage: React.FC = () => {
   const { prNumber } = useParams<{ prNumber: string }>();
   const navigate = useNavigate();
@@ -27,9 +62,14 @@ export const ReviewPage: React.FC = () => {
     reviews, 
     activeReview, 
     setActiveReviewPR, 
+    fetchAndSetActivePR,
     prepareActiveReview, 
     runAIReview, 
     submitReviewDecision,
+    addLabels,
+    removeLabel,
+    addAssignees,
+    removeAssignees,
     resetActiveReview 
   } = useCabinStore();
 
@@ -37,42 +77,8 @@ export const ReviewPage: React.FC = () => {
   const [commentDraft, setCommentDraft] = useState('');
   const [showDecisionModal, setShowDecisionModal] = useState<'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT' | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const prNum = parseInt(prNumber || '', 10);
-
-  // Load active PR on mount
-  useEffect(() => {
-    const pr = reviews.find(r => r.prNumber === prNum);
-    if (pr) {
-      setActiveReviewPR(pr);
-    } else {
-      // Fallback if accessed directly (demo)
-      const mockPr = {
-        id: `mock-repo/${prNum}`,
-        prNumber: prNum,
-        repositoryId: 'demo/repo',
-        repoName: 'repo',
-        repoOwner: 'demo',
-        title: 'Loading Pull Request details...',
-        author: 'developer',
-        requestedDate: new Date().toISOString(),
-        labels: [],
-        ciStatus: 'unknown' as const,
-        mergeConflictStatus: 'unknown' as const,
-        dcoStatus: 'unknown' as const,
-        lastUpdated: new Date().toISOString(),
-        aiStatus: 'pending' as const,
-        reviewStatus: 'pending' as const,
-        branchName: 'feature',
-        targetBranch: 'main',
-      };
-      setActiveReviewPR(mockPr);
-    }
-
-    return () => {
-      resetActiveReview();
-    };
-  }, [prNum]);
+  const [repoLabels, setRepoLabels] = useState<string[]>([]);
+  const [repoAssignees, setRepoAssignees] = useState<string[]>([]);
 
   const {
     pullRequest,
@@ -86,6 +92,79 @@ export const ReviewPage: React.FC = () => {
     aiRunning,
     aiLogs
   } = activeReview;
+
+  const defaultLabels = [
+    'bug', 'enhancement', 'documentation', 'duplicate', 'wontfix', 
+    'good first issue', 'help wanted', 'invalid', 'dependencies', 'question'
+  ];
+  
+  const defaultAssignees = [
+    pullRequest?.author,
+    pullRequest?.repoOwner
+  ].filter(Boolean) as string[];
+
+  const allLabels = Array.from(new Set([...repoLabels, ...defaultLabels]));
+  const allAssignees = Array.from(new Set([...repoAssignees, ...defaultAssignees]));
+
+  const prNum = parseInt(prNumber || '', 10);
+
+  const [searchParams] = useSearchParams();
+
+  // Load active PR on mount
+  useEffect(() => {
+    const owner = searchParams.get('owner');
+    const repo = searchParams.get('repo');
+
+    if (owner && repo) {
+      fetchAndSetActivePR(owner, repo, prNum);
+    } else {
+      const pr = reviews.find(r => r.prNumber === prNum);
+      if (pr) {
+        setActiveReviewPR(pr);
+      } else {
+        // Fallback if accessed directly (demo)
+        const mockPr = {
+          id: `mock-repo/${prNum}`,
+          prNumber: prNum,
+          repositoryId: 'demo/repo',
+          repoName: 'repo',
+          repoOwner: 'demo',
+          title: 'Loading Pull Request details...',
+          author: 'developer',
+          requestedDate: new Date().toISOString(),
+          labels: [],
+          ciStatus: 'unknown' as const,
+          mergeConflictStatus: 'unknown' as const,
+          dcoStatus: 'unknown' as const,
+          lastUpdated: new Date().toISOString(),
+          aiStatus: 'pending' as const,
+          reviewStatus: 'pending' as const,
+          branchName: 'feature',
+          targetBranch: 'main',
+          description: '',
+          assignees: [],
+        };
+        setActiveReviewPR(mockPr);
+      }
+    }
+
+    return () => {
+      resetActiveReview();
+    };
+  }, [prNum]);
+
+  useEffect(() => {
+    if (pullRequest && pullRequest.repoOwner && pullRequest.repoName && pullRequest.repoOwner !== 'demo') {
+      window.electronAPI.getRepoLabels(pullRequest.repoOwner, pullRequest.repoName)
+        .then(setRepoLabels)
+        .catch(console.error);
+      window.electronAPI.getRepoAssignees(pullRequest.repoOwner, pullRequest.repoName)
+        .then(setRepoAssignees)
+        .catch(console.error);
+    }
+  }, [pullRequest?.repoOwner, pullRequest?.repoName]);
+
+
 
   // Auto-draft comments based on findings
   useEffect(() => {
@@ -158,9 +237,18 @@ export const ReviewPage: React.FC = () => {
               <span>•</span>
               <span className="font-mono">#{pullRequest.prNumber}</span>
               <span>•</span>
-              <span className="bg-white px-1.5 py-0.5 rounded text-[10px] text-zinc-600 border border-appBorder">
+              <span className="bg-white px-1.5 py-0.5 rounded text-[10px] text-zinc-650 border border-appBorder">
                 {pullRequest.branchName} ──&gt; {pullRequest.targetBranch}
               </span>
+              <span>•</span>
+              <div className="flex items-center gap-1 bg-zinc-50 px-2 py-0.5 rounded-lg border border-zinc-200">
+                {pullRequest.authorAvatarUrl ? (
+                  <img src={pullRequest.authorAvatarUrl} alt="" className="h-4 w-4 rounded-full border border-zinc-200" />
+                ) : (
+                  <div className="h-4 w-4 rounded-full bg-zinc-200" />
+                )}
+                <span className="font-bold text-zinc-600">@{pullRequest.author}</span>
+              </div>
             </div>
             <h1 className="text-base font-semibold text-zinc-800 mt-1">{pullRequest.title}</h1>
           </div>
@@ -313,15 +401,19 @@ export const ReviewPage: React.FC = () => {
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Comment Thread Synthesis</h3>
                 {discussionSummary ? (
-                  <div className="space-y-4 text-xs text-zinc-700">
-                    <p className="bg-zinc-50 border border-zinc-200/50 p-4 rounded-2xl leading-relaxed">{discussionSummary.summary}</p>
+                  <div className="space-y-4 text-xs text-zinc-700 select-text">
+                    <div className="bg-zinc-50 border border-zinc-200/50 p-4 rounded-2xl">
+                      {renderMarkdown(discussionSummary.summary)}
+                    </div>
                     
                     {discussionSummary.requestedChanges.length > 0 && (
                       <div className="space-y-2">
                         <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wider pl-1">Changes Requested:</span>
-                        <ul className="list-disc pl-5 space-y-1.5">
+                        <ul className="space-y-3">
                           {discussionSummary.requestedChanges.map((change, i) => (
-                            <li key={i}>{change}</li>
+                            <li key={i} className="bg-zinc-50/50 border border-zinc-200/40 p-3 rounded-xl">
+                              {renderMarkdown(change)}
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -330,9 +422,11 @@ export const ReviewPage: React.FC = () => {
                     {discussionSummary.questions.length > 0 && (
                       <div className="space-y-2">
                         <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider pl-1">Questions in Threads:</span>
-                        <ul className="list-disc pl-5 space-y-1.5">
+                        <ul className="space-y-3">
                           {discussionSummary.questions.map((q, i) => (
-                            <li key={i}>{q}</li>
+                            <li key={i} className="bg-zinc-50/50 border border-zinc-200/40 p-3 rounded-xl">
+                              {renderMarkdown(q)}
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -345,20 +439,42 @@ export const ReviewPage: React.FC = () => {
             )}
 
             {activeLeftTab === 'context' && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Onboarding Context</h3>
-                {repositoryContext ? (
-                  <div className="space-y-3 text-xs text-zinc-700">
-                    {repositoryContext.repoRules.length > 0 && (
-                      <div className="bg-slate-50 border border-slate-200/50 p-4 rounded-2xl space-y-1.5">
-                        <span className="font-bold text-slate-500">Parsed Rules:</span>
-                        <ul className="list-disc pl-5 space-y-1">
-                          {repositoryContext.repoRules.map((rule, i) => (
-                            <li key={i}>{rule}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+              <div className="space-y-5">
+                {/* PR Title & Description Scope */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">PR Scope & Details</h3>
+                  <div className="bg-slate-50 border border-slate-200/50 p-5 rounded-2xl space-y-3">
+                    <div className="text-xs font-bold text-zinc-800">
+                      <span className="text-slate-400 uppercase font-mono tracking-wide">PR Title:</span>
+                      <p className="mt-1 text-sm font-bold text-slate-700">{pullRequest.title}</p>
+                    </div>
+                    <div className="text-xs font-bold text-zinc-800 border-t border-zinc-200/60 pt-3">
+                      <span className="text-slate-400 uppercase font-mono tracking-wide">PR Description:</span>
+                      {pullRequest.description ? (
+                        <div className="mt-2 bg-white p-3.5 border border-zinc-200 rounded-xl max-h-[350px] overflow-y-auto">
+                          {renderMarkdown(pullRequest.description)}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-xs text-zinc-400 italic font-medium">No description provided for this pull request.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-zinc-200/60 pt-4 space-y-3">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Onboarding Context</h3>
+                  {repositoryContext ? (
+                    <div className="space-y-3 text-xs text-zinc-700">
+                      {repositoryContext.repoRules.length > 0 && (
+                        <div className="bg-slate-50 border border-slate-200/50 p-4 rounded-2xl space-y-1.5">
+                          <span className="font-bold text-slate-500">Parsed Rules:</span>
+                          <ul className="list-disc pl-5 space-y-1">
+                            {repositoryContext.repoRules.map((rule, i) => (
+                              <li key={i}>{rule}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     {repositoryContext.prTemplate && (
                       <div className="space-y-1.5">
                         <span className="font-bold text-slate-500 pl-1">PR Template:</span>
@@ -371,6 +487,7 @@ export const ReviewPage: React.FC = () => {
                 ) : (
                   <p className="text-xs text-zinc-500 italic pl-1">Run preparation to gather workspace guidelines.</p>
                 )}
+                </div>
               </div>
             )}
           </div>
@@ -469,9 +586,9 @@ export const ReviewPage: React.FC = () => {
                     {/* Summary */}
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Analysis Summary</h4>
-                      <p className="text-xs text-zinc-700 bg-zinc-50 border border-zinc-200/50 p-4 rounded-2xl leading-relaxed select-text">
-                        {aiReviewResult.summary}
-                      </p>
+                      <div className="bg-zinc-50 border border-zinc-200/50 p-4 rounded-2xl">
+                        {renderMarkdown(aiReviewResult.summary)}
+                      </div>
                     </div>
 
                     {/* Findings list */}
@@ -491,7 +608,9 @@ export const ReviewPage: React.FC = () => {
                                 <span>High Severity</span>
                                 <span className="bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md font-mono text-[9px]">{f.file}{f.line ? `:${f.line}` : ''}</span>
                               </div>
-                              <p className="text-xs text-zinc-800 leading-relaxed">{f.description}</p>
+                              <div className="text-xs text-zinc-800 leading-relaxed">
+                                {renderMarkdown(f.description)}
+                              </div>
                               {f.codeSnippet && (
                                 <pre className="text-[10px] bg-zinc-50 p-3 border border-zinc-200 rounded-xl font-mono text-zinc-600 overflow-x-auto">
                                   {f.codeSnippet}
@@ -507,7 +626,9 @@ export const ReviewPage: React.FC = () => {
                                 <span>Medium Severity</span>
                                 <span className="bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-mono text-[9px]">{f.file}{f.line ? `:${f.line}` : ''}</span>
                               </div>
-                              <p className="text-xs text-zinc-800 leading-relaxed">{f.description}</p>
+                              <div className="text-xs text-zinc-800 leading-relaxed">
+                                {renderMarkdown(f.description)}
+                              </div>
                             </div>
                           ))}
 
@@ -518,7 +639,9 @@ export const ReviewPage: React.FC = () => {
                                 <span>Low Severity</span>
                                 <span className="bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-md font-mono text-[9px]">{f.file}{f.line ? `:${f.line}` : ''}</span>
                               </div>
-                              <p className="text-xs text-zinc-800 leading-relaxed">{f.description}</p>
+                              <div className="text-xs text-zinc-800 leading-relaxed">
+                                {renderMarkdown(f.description)}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -573,7 +696,105 @@ export const ReviewPage: React.FC = () => {
             )}
           </div>
 
-          <div className="space-y-3 border-t border-zinc-200 pt-4 mt-6">
+          {/* Labels & Assignees Widget */}
+          <div className="space-y-4 border-t border-zinc-200 pt-4 mt-5">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Labels & Assignees</h3>
+            
+            {/* Labels */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] text-zinc-500 font-semibold pl-1">
+                <span>LABELS</span>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      addLabels([e.target.value]);
+                    }
+                  }}
+                  className="text-[10px] text-brandGreen font-bold bg-transparent outline-none border-none cursor-pointer max-w-[120px]"
+                >
+                  <option value="" disabled>+ Add Label</option>
+                  {allLabels
+                    .filter(l => !pullRequest.labels.includes(l))
+                    .map(l => (
+                      <option key={l} value={l}>{l}</option>
+                    ))
+                  }
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-1.5 min-h-[24px]">
+                {pullRequest.labels.length === 0 ? (
+                  <span className="text-[10px] text-zinc-400 italic pl-1">No labels assigned</span>
+                ) : (
+                  pullRequest.labels.map(label => (
+                    <span 
+                      key={label}
+                      className="inline-flex items-center gap-1 bg-slate-50 text-slate-650 px-2 py-0.5 rounded-full text-[9px] font-semibold border border-slate-200"
+                    >
+                      {label}
+                      <button 
+                        onClick={() => removeLabel(label)}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 font-bold ml-0.5"
+                        title="Remove label"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Assignees */}
+            <div className="space-y-2 mt-3">
+              <div className="flex items-center justify-between text-[11px] text-zinc-500 font-semibold pl-1">
+                <span>ASSIGNEES</span>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      addAssignees([e.target.value]);
+                    }
+                  }}
+                  className="text-[10px] text-brandGreen font-bold bg-transparent outline-none border-none cursor-pointer max-w-[120px]"
+                >
+                  <option value="" disabled>+ Assign User</option>
+                  {pullRequest.author && !pullRequest.assignees?.includes(pullRequest.author) && (
+                    <option value={pullRequest.author}>PR Author (@{pullRequest.author})</option>
+                  )}
+                  {allAssignees
+                    .filter(a => a !== pullRequest.author && !pullRequest.assignees?.includes(a))
+                    .map(a => (
+                      <option key={a} value={a}>@{a}</option>
+                    ))
+                  }
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-1.5 min-h-[24px]">
+                {(!pullRequest.assignees || pullRequest.assignees.length === 0) ? (
+                  <span className="text-[10px] text-zinc-400 italic pl-1">No assignees</span>
+                ) : (
+                  pullRequest.assignees.map(user => (
+                    <span 
+                      key={user}
+                      className="inline-flex items-center gap-1 bg-brandGreenLight text-brandGreen px-2.5 py-0.5 rounded-full text-[9px] font-bold border border-emerald-100"
+                    >
+                      @{user}
+                      <button 
+                        onClick={() => removeAssignees([user])}
+                        className="text-[10px] text-brandGreen hover:text-brandGreenHover font-bold ml-0.5"
+                        title="Remove assignee"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 border-t border-zinc-200 pt-4 mt-5">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Review Decision</h3>
             
             <div className="space-y-1">

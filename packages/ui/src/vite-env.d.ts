@@ -27,6 +27,13 @@ export interface ElectronAPI {
     action: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
     commentText: string
   ) => Promise<void>;
+  addLabels: (owner: string, repo: string, prNumber: number, labels: string[]) => Promise<void>;
+  removeLabel: (owner: string, repo: string, prNumber: number, labelName: string) => Promise<void>;
+  addAssignees: (owner: string, repo: string, prNumber: number, assignees: string[]) => Promise<void>;
+  removeAssignees: (owner: string, repo: string, prNumber: number, assignees: string[]) => Promise<void>;
+  fetchPRDetails: (owner: string, repo: string, prNumber: number) => Promise<any>;
+  getRepoLabels: (owner: string, repo: string) => Promise<string[]>;
+  getRepoAssignees: (owner: string, repo: string) => Promise<string[]>;
   openExternal: (url: string) => Promise<void>;
   openLocalFolder: (localPath: string) => Promise<void>;
   onReviewProgress: (callback: (data: { stepName: string; progress: number; status: string }) => void) => () => void;

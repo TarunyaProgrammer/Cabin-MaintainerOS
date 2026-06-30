@@ -65,7 +65,6 @@ export const DonutChart: React.FC<DonutChartProps> = ({ passed, failed, pending,
                   strokeWidth={strokeWidth}
                   strokeDasharray={circumference}
                   strokeDashoffset={circumference - (passedPercent / 100) * circumference}
-                  strokeDashoffset-delay="100ms"
                   strokeLinecap="round"
                   className="transition-all duration-1000 ease-out origin-center"
                   style={{
