@@ -29,8 +29,8 @@ export class GitHubService {
     const { data: user } = await octokit.rest.users.getAuthenticated();
     const username = user.login;
 
-    // 2. Query search API for PRs requesting review from user or assigned
-    const query = `is:pr state:open review-requested:${username}`;
+    // 2. Query search API for PRs involving the user but not authored by the user
+    const query = `is:pr state:open involves:${username} -author:${username}`;
     const { data: searchResult } = await octokit.rest.search.issuesAndPullRequests({
       q: query,
     });
@@ -39,7 +39,6 @@ export class GitHubService {
 
     for (const item of searchResult.items) {
       // Find repo details from URL
-      // E.g., "https://api.github.com/repos/owner/repo"
       const urlParts = item.repository_url.split('/');
       const repo = urlParts[urlParts.length - 1];
       const owner = urlParts[urlParts.length - 2];
@@ -51,31 +50,128 @@ export class GitHubService {
         pull_number: item.number,
       });
 
-      // Get PR status checks (rough guess for list view, detailed runs done by CI worker later)
-      const ciStatus = await this.getQuickCIStatus(owner, repo, prDetail.head.sha);
+      // Gather latest interaction timestamps
+      let latestUserActionTime = 0;
+      let latestOtherActionTime = 0;
 
-      prs.push({
-        id: `${owner}/${repo}/${item.number}`,
-        prNumber: item.number,
-        repositoryId: `${owner}/${repo}`,
-        repoName: repo,
-        repoOwner: owner,
-        title: item.title,
-        author: item.user?.login || 'unknown',
-        authorAvatarUrl: item.user?.avatar_url || undefined,
-        requestedDate: item.created_at,
-        labels: item.labels.map((l: any) => (typeof l === 'string' ? l : l.name || '')).filter(Boolean),
-        ciStatus,
-        mergeConflictStatus: prDetail.mergeable === true ? 'passed' : prDetail.mergeable === false ? 'failed' : 'pending',
-        dcoStatus: 'pending', // Evaluated by DCO worker
-        lastUpdated: item.updated_at,
-        aiStatus: 'pending',
-        reviewStatus: 'pending',
-        branchName: prDetail.head.ref,
-        targetBranch: prDetail.base.ref,
-        description: prDetail.body || '',
-        assignees: prDetail.assignees?.map((a: any) => a.login) || [],
-      });
+      // PR Creation (check if author is user)
+      const prAuthor = prDetail.user?.login || 'unknown';
+      const prCreatedAt = new Date(prDetail.created_at).getTime();
+      if (prAuthor === username) {
+        latestUserActionTime = Math.max(latestUserActionTime, prCreatedAt);
+      } else {
+        latestOtherActionTime = Math.max(latestOtherActionTime, prCreatedAt);
+      }
+
+      // Fetch Reviews
+      try {
+        const { data: reviews } = await octokit.rest.pulls.listReviews({
+          owner,
+          repo,
+          pull_number: item.number,
+        });
+        for (const rev of reviews) {
+          const revUser = rev.user?.login;
+          const revTime = new Date(rev.submitted_at || prDetail.created_at).getTime();
+          if (revUser === username) {
+            latestUserActionTime = Math.max(latestUserActionTime, revTime);
+          } else {
+            latestOtherActionTime = Math.max(latestOtherActionTime, revTime);
+          }
+        }
+      } catch {}
+
+      // Fetch Issue Comments
+      try {
+        const { data: issueComments } = await octokit.rest.issues.listComments({
+          owner,
+          repo,
+          issue_number: item.number,
+        });
+        for (const c of issueComments) {
+          const cUser = c.user?.login;
+          const cTime = new Date(c.created_at).getTime();
+          if (cUser === username) {
+            latestUserActionTime = Math.max(latestUserActionTime, cTime);
+          } else {
+            latestOtherActionTime = Math.max(latestOtherActionTime, cTime);
+          }
+        }
+      } catch {}
+
+      // Fetch Review (Inline) Comments
+      try {
+        const { data: reviewComments } = await octokit.rest.pulls.listReviewComments({
+          owner,
+          repo,
+          pull_number: item.number,
+        });
+        for (const c of reviewComments) {
+          const cUser = c.user?.login;
+          const cTime = new Date(c.created_at).getTime();
+          if (cUser === username) {
+            latestUserActionTime = Math.max(latestUserActionTime, cTime);
+          } else {
+            latestOtherActionTime = Math.max(latestOtherActionTime, cTime);
+          }
+        }
+      } catch {}
+
+      // Fetch Commits
+      try {
+        const { data: commits } = await octokit.rest.pulls.listCommits({
+          owner,
+          repo,
+          pull_number: item.number,
+        });
+        for (const c of commits) {
+          const cUser = c.author?.login || c.committer?.login || 'unknown';
+          const cTime = new Date(c.commit.committer?.date || c.commit.author?.date || prDetail.created_at).getTime();
+          if (cUser === username) {
+            latestUserActionTime = Math.max(latestUserActionTime, cTime);
+          } else {
+            latestOtherActionTime = Math.max(latestOtherActionTime, cTime);
+          }
+        }
+      } catch {}
+
+      // Fresh activity rule:
+      // Include if:
+      // 1. User has never interacted yet (latestUserActionTime === 0).
+      // 2. OR someone else submitted a review, comment, or commit after user's latest interaction.
+      const hasFreshActivity = latestUserActionTime === 0 || latestOtherActionTime > latestUserActionTime;
+
+      // Exclude stale PRs (inactive for >30 days) to prevent backlog clutter
+      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const lastActiveTime = Math.max(latestUserActionTime, latestOtherActionTime);
+      const isStale = lastActiveTime < thirtyDaysAgo;
+
+      if (hasFreshActivity && !isStale) {
+        const ciStatus = await this.getQuickCIStatus(owner, repo, prDetail.head.sha);
+
+        prs.push({
+          id: `${owner}/${repo}/${item.number}`,
+          prNumber: item.number,
+          repositoryId: `${owner}/${repo}`,
+          repoName: repo,
+          repoOwner: owner,
+          title: item.title,
+          author: item.user?.login || 'unknown',
+          authorAvatarUrl: item.user?.avatar_url || undefined,
+          requestedDate: item.created_at,
+          labels: item.labels.map((l: any) => (typeof l === 'string' ? l : l.name || '')).filter(Boolean),
+          ciStatus,
+          mergeConflictStatus: prDetail.mergeable === true ? 'passed' : prDetail.mergeable === false ? 'failed' : 'pending',
+          dcoStatus: 'pending',
+          lastUpdated: item.updated_at,
+          aiStatus: 'pending',
+          reviewStatus: 'pending',
+          branchName: prDetail.head.ref,
+          targetBranch: prDetail.base.ref,
+          description: prDetail.body || '',
+          assignees: prDetail.assignees?.map((a: any) => a.login) || [],
+        });
+      }
     }
 
     return prs;

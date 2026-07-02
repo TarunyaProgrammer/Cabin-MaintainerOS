@@ -79,6 +79,9 @@ export const ReviewPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [repoLabels, setRepoLabels] = useState<string[]>([]);
   const [repoAssignees, setRepoAssignees] = useState<string[]>([]);
+  const [pendingChore, setPendingChore] = useState<'DCO' | 'REBASE' | null>(null);
+  const [modalMode, setModalMode] = useState<'write' | 'preview'>('write');
+  const [aiReviewDraft, setAiReviewDraft] = useState('');
 
   const {
     pullRequest,
@@ -153,6 +156,13 @@ export const ReviewPage: React.FC = () => {
     };
   }, [prNum]);
 
+  // Automatically prepare local workspace once PR is loaded
+  useEffect(() => {
+    if (pullRequest && !localPath && !pipelineRunning) {
+      prepareActiveReview();
+    }
+  }, [pullRequest?.id, localPath, pipelineRunning]);
+
   useEffect(() => {
     if (pullRequest && pullRequest.repoOwner && pullRequest.repoName && pullRequest.repoOwner !== 'demo') {
       window.electronAPI.getRepoLabels(pullRequest.repoOwner, pullRequest.repoName)
@@ -164,27 +174,45 @@ export const ReviewPage: React.FC = () => {
     }
   }, [pullRequest?.repoOwner, pullRequest?.repoName]);
 
-
+  // Reset modal mode on open/close
+  useEffect(() => {
+    if (!showDecisionModal) {
+      setModalMode('write');
+    }
+  }, [showDecisionModal]);
 
   // Auto-draft comments based on findings
   useEffect(() => {
     if (aiReviewResult) {
-      let draft = `### Review Findings Summary\n\n${aiReviewResult.summary}\n\n`;
-      if (aiReviewResult.highSeverityFindings.length > 0) {
-        draft += `#### 🚨 High Priority:\n`;
+      // Praise the author on the first line and keep it humanised
+      let draft = `Great work on this PR so far! XD\n\nI took a look at the review findings, and here is a quick summary:\n\n${aiReviewResult.summary.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '')}\n\n`;
+      
+      const hasHigh = aiReviewResult.highSeverityFindings.length > 0;
+      const hasMedium = aiReviewResult.mediumSeverityFindings.length > 0;
+      const hasLow = aiReviewResult.lowSeverityFindings.length > 0;
+
+      if (hasHigh) {
+        draft += `Major Changes Needed:\n`;
         aiReviewResult.highSeverityFindings.forEach((f: any) => {
-          draft += `- **${f.file}${f.line ? `:${f.line}` : ''}**: ${f.description}\n`;
-          if (f.suggestion) draft += `  _Suggestion_: \`${f.suggestion}\`\n`;
+          const cleanDesc = f.description.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '');
+          draft += `- **${f.file}${f.line ? `:${f.line}` : ''}**: ${cleanDesc}\n`;
+          if (f.suggestion) {
+            const cleanSug = f.suggestion.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '');
+            draft += `  Suggestion: \`${cleanSug}\`\n`;
+          }
         });
         draft += `\n`;
       }
-      if (aiReviewResult.mediumSeverityFindings.length > 0) {
-        draft += `#### ⚠️ Medium Priority:\n`;
-        aiReviewResult.mediumSeverityFindings.forEach((f: any) => {
-          draft += `- **${f.file}${f.line ? `:${f.line}` : ''}**: ${f.description}\n`;
+
+      if (hasMedium || hasLow) {
+        draft += `Minor Changes / Suggestions:\n`;
+        [...aiReviewResult.mediumSeverityFindings, ...aiReviewResult.lowSeverityFindings].forEach((f: any) => {
+          const cleanDesc = f.description.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '');
+          draft += `- **${f.file}${f.line ? `:${f.line}` : ''}**: ${cleanDesc}\n`;
         });
       }
-      setCommentDraft(draft);
+
+      setAiReviewDraft(draft);
     }
   }, [aiReviewResult]);
 
@@ -214,7 +242,18 @@ export const ReviewPage: React.FC = () => {
     setSubmitting(true);
     try {
       await submitReviewDecision(showDecisionModal, commentDraft);
+      if (pendingChore === 'DCO') {
+        localStorage.setItem(`cabin:dco-requested:${pullRequest.id}`, 'true');
+      } else if (pendingChore === 'REBASE') {
+        localStorage.setItem(`cabin:rebase-requested:${pullRequest.id}`, 'true');
+      }
+      
+      // Save decision in localStorage
+      const decisionType = showDecisionModal === 'APPROVE' ? 'approve' : showDecisionModal === 'REQUEST_CHANGES' ? 'request_changes' : 'comment';
+      localStorage.setItem(`cabin:decision:${decisionType}:${pullRequest.id}`, 'true');
+
       setShowDecisionModal(null);
+      setPendingChore(null);
     } catch {}
     setSubmitting(false);
   };
@@ -396,7 +435,7 @@ export const ReviewPage: React.FC = () => {
                 )}
               </div>
             )}
-
+            
             {activeLeftTab === 'discussion' && (
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Comment Thread Synthesis</h3>
@@ -408,26 +447,59 @@ export const ReviewPage: React.FC = () => {
                     
                     {discussionSummary.requestedChanges.length > 0 && (
                       <div className="space-y-2">
-                        <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wider pl-1">Changes Requested:</span>
+                        <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wider pl-1 block">Changes Requested:</span>
                         <ul className="space-y-3">
-                          {discussionSummary.requestedChanges.map((change, i) => (
-                            <li key={i} className="bg-zinc-50/50 border border-zinc-200/40 p-3 rounded-xl">
-                              {renderMarkdown(change)}
-                            </li>
-                          ))}
+                          {discussionSummary.requestedChanges.map((change, i) => {
+                            const match = change.match(/^Review by ([^:]+):\s*([\s\S]*)$/);
+                            const author = match ? match[1] : 'Unknown';
+                            const content = match ? match[2] : change;
+                            return (
+                              <li key={i} className="bg-white border border-zinc-200/80 rounded-2xl shadow-sm overflow-hidden animate-fadeIn">
+                                <div className="bg-zinc-50 border-b border-zinc-100 px-4 py-2.5 flex items-center justify-between text-[11px] font-bold text-zinc-600 select-none">
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="text-zinc-400 font-medium">Review by</span>
+                                    <span className="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">@{author}</span>
+                                  </span>
+                                  <span className="text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-100 font-bold uppercase tracking-wider text-[9px]">
+                                    Changes Requested
+                                  </span>
+                                </div>
+                                <div className="p-4 text-xs text-zinc-700 leading-relaxed font-normal max-h-[350px] overflow-y-auto">
+                                  {renderMarkdown(content)}
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     )}
 
                     {discussionSummary.questions.length > 0 && (
                       <div className="space-y-2">
-                        <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider pl-1">Questions in Threads:</span>
+                        <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider pl-1 block">Questions in Threads:</span>
                         <ul className="space-y-3">
-                          {discussionSummary.questions.map((q, i) => (
-                            <li key={i} className="bg-zinc-50/50 border border-zinc-200/40 p-3 rounded-xl">
-                              {renderMarkdown(q)}
-                            </li>
-                          ))}
+                          {discussionSummary.questions.map((q, i) => {
+                            const match = q.match(/^([^:]+):\s*([\s\S]*)$/);
+                            const author = match ? match[1] : 'Unknown';
+                            const content = match ? match[2] : q;
+                            const cleanContent = content.startsWith('"') && content.endsWith('"') ? content.slice(1, -1) : content;
+                            return (
+                              <li key={i} className="bg-white border border-zinc-200/80 rounded-2xl shadow-sm overflow-hidden animate-fadeIn">
+                                <div className="bg-zinc-50 border-b border-zinc-100 px-4 py-2.5 flex items-center justify-between text-[11px] font-bold text-zinc-600 select-none">
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="text-zinc-400 font-medium">Question by</span>
+                                    <span className="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">@{author}</span>
+                                  </span>
+                                  <span className="text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-100 font-bold uppercase tracking-wider text-[9px]">
+                                    Question Asked
+                                  </span>
+                                </div>
+                                <div className="p-4 text-xs text-zinc-700 leading-relaxed font-normal max-h-[250px] overflow-y-auto">
+                                  {renderMarkdown(cleanContent)}
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     )}
@@ -659,41 +731,63 @@ export const ReviewPage: React.FC = () => {
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Maintainer Chores</h3>
             
-            {localPath && (
-              <div className="space-y-3">
-                <div>
-                  <button
-                    disabled={pullRequest.dcoStatus === 'passed'}
-                    onClick={() => {
-                      setCommentDraft('Please sign off your commits using standard developer certificate of origin format (DCO).\n\nUse: `git commit -s --amend` to sign your commits.');
-                      setShowDecisionModal('COMMENT');
-                    }}
-                    className="w-full text-left bg-zinc-50 border border-zinc-200 hover:border-zinc-300 p-4 rounded-2xl text-xs transition-all duration-200 disabled:opacity-40"
-                  >
-                    <div className="font-bold text-zinc-700">Request DCO Signature</div>
-                    <p className="text-[10px] text-zinc-500 mt-1.5 leading-normal">
-                      Ask the author to sign commits using standard Developer Certificate of Origin (DCO) format (`git commit -s`).
-                    </p>
-                  </button>
-                </div>
+            {localPath && (() => {
+              const dcoRequested = localStorage.getItem(`cabin:dco-requested:${pullRequest.id}`) === 'true';
+              const rebaseRequested = localStorage.getItem(`cabin:rebase-requested:${pullRequest.id}`) === 'true';
+              return (
+                <div className="space-y-3">
+                  <div>
+                    <button
+                      disabled={pullRequest.dcoStatus === 'passed'}
+                      onClick={() => {
+                        setCommentDraft('Please sign off your commits using standard developer certificate of origin format (DCO).\n\nUse: `git commit -s --amend` to sign your commits.');
+                        setPendingChore('DCO');
+                        setShowDecisionModal('COMMENT');
+                      }}
+                      className="w-full text-left bg-zinc-50 border border-zinc-200 hover:border-zinc-300 p-4 rounded-2xl text-xs transition-all duration-200 disabled:opacity-40"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-zinc-700">Request DCO Signature</div>
+                        {dcoRequested && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 animate-fadeIn">
+                            <CheckCircle2 className="h-3 w-3" />
+                            <span>Requested</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-zinc-500 mt-1.5 leading-normal">
+                        Ask the author to sign commits using standard Developer Certificate of Origin (DCO) format (`git commit -s`).
+                      </p>
+                    </button>
+                  </div>
 
-                <div>
-                  <button
-                    disabled={pullRequest.mergeConflictStatus === 'passed'}
-                    onClick={() => {
-                      setCommentDraft('This branch has merge conflicts. Please rebase onto the latest main branch and push.');
-                      setShowDecisionModal('COMMENT');
-                    }}
-                    className="w-full text-left bg-zinc-50 border border-zinc-200 hover:border-zinc-300 p-4 rounded-2xl text-xs transition-all duration-200 disabled:opacity-40"
-                  >
-                    <div className="font-bold text-zinc-700">Request Rebase / Conflicts</div>
-                    <p className="text-[10px] text-zinc-500 mt-1.5 leading-normal">
-                      Notify the developer about branch conflicts and request a clean rebase onto the target branch.
-                    </p>
-                  </button>
+                  <div>
+                    <button
+                      disabled={pullRequest.mergeConflictStatus === 'passed'}
+                      onClick={() => {
+                        setCommentDraft('This branch has merge conflicts. Please rebase onto the latest main branch and push.');
+                        setPendingChore('REBASE');
+                        setShowDecisionModal('COMMENT');
+                      }}
+                      className="w-full text-left bg-zinc-50 border border-zinc-200 hover:border-zinc-300 p-4 rounded-2xl text-xs transition-all duration-200 disabled:opacity-40"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-zinc-700">Request Rebase / Conflicts</div>
+                        {rebaseRequested && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 animate-fadeIn">
+                            <CheckCircle2 className="h-3 w-3" />
+                            <span>Requested</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-zinc-500 mt-1.5 leading-normal">
+                        Notify the developer about branch conflicts and request a clean rebase onto the target branch.
+                      </p>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* Labels & Assignees Widget */}
@@ -797,44 +891,87 @@ export const ReviewPage: React.FC = () => {
           <div className="space-y-3 border-t border-zinc-200 pt-4 mt-5">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Review Decision</h3>
             
-            <div className="space-y-1">
-              <button
-                disabled={!localPath || pipelineRunning}
-                onClick={() => setShowDecisionModal('APPROVE')}
-                className="ui-button-emerald w-full py-2.5 text-xs font-bold disabled:opacity-30"
-              >
-                Approve PR
-              </button>
-              <p className="text-[9px] text-zinc-500 px-1 leading-normal">
-                Submits an official LGTM review approval. This signals to GitHub that the PR is ready to merge.
-              </p>
-            </div>
-            
-            <div className="space-y-1 mt-3">
-              <button
-                disabled={!localPath || pipelineRunning}
-                onClick={() => setShowDecisionModal('REQUEST_CHANGES')}
-                className="ui-button-rose w-full py-2.5 text-xs font-bold disabled:opacity-30"
-              >
-                Request Changes
-              </button>
-              <p className="text-[9px] text-zinc-500 px-1 leading-normal">
-                Blocks the PR from being merged and submits specific modification request feedback.
-              </p>
-            </div>
-            
-            <div className="space-y-1 mt-3">
-              <button
-                disabled={!localPath || pipelineRunning}
-                onClick={() => setShowDecisionModal('COMMENT')}
-                className="ui-button-secondary w-full py-2.5 text-xs font-bold disabled:opacity-30"
-              >
-                Submit Comment
-              </button>
-              <p className="text-[9px] text-zinc-500 px-1 leading-normal">
-                Submits general observations/questions without blocking or approving the PR.
-              </p>
-            </div>
+            {(() => {
+              const pastDecisions = (pullRequest as any).pastDecisions || [];
+              const isApproved = pastDecisions.includes('approve') || localStorage.getItem(`cabin:decision:approve:${pullRequest.id}`) === 'true';
+              const isChangesRequested = pastDecisions.includes('request_changes') || localStorage.getItem(`cabin:decision:request_changes:${pullRequest.id}`) === 'true';
+              const isCommented = pastDecisions.includes('comment') || localStorage.getItem(`cabin:decision:comment:${pullRequest.id}`) === 'true';
+              return (
+                <>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        disabled={!localPath || pipelineRunning}
+                        onClick={() => {
+                          setCommentDraft(`Great work on this PR! LGTM! XD`);
+                          setShowDecisionModal('APPROVE');
+                        }}
+                        className="ui-button-emerald flex-1 py-2.5 text-xs font-bold disabled:opacity-30"
+                      >
+                        Approve PR
+                      </button>
+                      {isApproved && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-2 rounded-lg border border-emerald-100 animate-fadeIn shrink-0">
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>Selected</span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-zinc-500 px-1 leading-normal">
+                      Submits an official LGTM review approval. This signals to GitHub that the PR is ready to merge.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-1 mt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        disabled={!localPath || pipelineRunning}
+                        onClick={() => {
+                          setCommentDraft(aiReviewDraft || `Great work on this PR so far! XD\n\nThere are a few issues that need to be resolved. Please review the findings.`);
+                          setShowDecisionModal('REQUEST_CHANGES');
+                        }}
+                        className="ui-button-rose flex-1 py-2.5 text-xs font-bold disabled:opacity-30"
+                      >
+                        Request Changes
+                      </button>
+                      {isChangesRequested && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-2 rounded-lg border border-rose-100 animate-fadeIn shrink-0">
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>Selected</span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-zinc-500 px-1 leading-normal">
+                      Blocks the PR from being merged and submits specific modification request feedback.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-1 mt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        disabled={!localPath || pipelineRunning}
+                        onClick={() => {
+                          setCommentDraft('');
+                          setShowDecisionModal('COMMENT');
+                        }}
+                        className="ui-button-secondary flex-1 py-2.5 text-xs font-bold disabled:opacity-30"
+                      >
+                        Submit Comment
+                      </button>
+                      {isCommented && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-zinc-650 bg-zinc-50 px-2 py-2 rounded-lg border border-zinc-200/50 animate-fadeIn shrink-0">
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>Selected</span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-zinc-500 px-1 leading-normal">
+                      Submits general observations/questions without blocking or approving the PR.
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -847,7 +984,7 @@ export const ReviewPage: React.FC = () => {
               initial={{ scale: 0.93, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.93, opacity: 0 }}
-              className="ui-card w-[550px] p-6 flex flex-col space-y-4"
+              className="ui-card w-[755px] max-h-[85vh] p-6 flex flex-col space-y-4"
             >
               <div className="flex justify-between items-center select-none pb-2 border-b border-zinc-200">
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
@@ -863,15 +1000,45 @@ export const ReviewPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="space-y-2 flex-1 select-none">
-                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider pl-1">Comment Draft (Markdown)</label>
-                <textarea
-                  value={commentDraft}
-                  onChange={(e) => setCommentDraft(e.target.value)}
-                  rows={8}
-                  className="ui-input w-full p-4 text-xs font-mono text-zinc-700 focus:outline-none leading-relaxed select-text"
-                  placeholder="Draft your comment here..."
-                />
+              <div className="space-y-2 flex-1 flex flex-col min-h-0 select-none">
+                <div className="flex justify-between items-center pb-1">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider pl-1">
+                    Comment Draft (Markdown)
+                  </label>
+                  <div className="flex bg-zinc-100 p-0.5 rounded-lg border border-zinc-200 text-[10px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setModalMode('write')}
+                      className={`px-2.5 py-1 rounded-md transition-all ${
+                        modalMode === 'write' ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200/50' : 'text-zinc-500 hover:text-zinc-800'
+                      }`}
+                    >
+                      Write
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalMode('preview')}
+                      className={`px-2.5 py-1 rounded-md transition-all ${
+                        modalMode === 'preview' ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200/50' : 'text-zinc-500 hover:text-zinc-800'
+                      }`}
+                    >
+                      Preview
+                    </button>
+                  </div>
+                </div>
+
+                {modalMode === 'write' ? (
+                  <textarea
+                    value={commentDraft}
+                    onChange={(e) => setCommentDraft(e.target.value)}
+                    className="ui-input w-full p-4 text-xs font-mono text-zinc-700 focus:outline-none leading-relaxed select-text flex-1 min-h-[300px] focus:border-zinc-300"
+                    placeholder="Draft your comment here..."
+                  />
+                ) : (
+                  <div className="ui-input w-full p-4 text-xs text-zinc-700 bg-white border border-zinc-200 rounded-xl overflow-y-auto leading-relaxed select-text flex-1 min-h-[300px] max-h-[350px]">
+                    {renderMarkdown(commentDraft) || <span className="text-zinc-400 italic">Nothing to preview.</span>}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3 border-t border-zinc-200 pt-3 justify-end select-none">

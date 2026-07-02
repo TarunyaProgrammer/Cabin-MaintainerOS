@@ -269,7 +269,7 @@ export class DiscussionWorker {
         
         // Count comments containing '?' as questions
         if (body.includes('?')) {
-          questions.push(`${comment.user?.login}: "${body.substring(0, 80)}..."`);
+          questions.push(`${comment.user?.login}: ${body}`);
         }
 
         // If it's a review comment, check if resolved (Octokit does not give thread-resolution details directly on individual comment object,

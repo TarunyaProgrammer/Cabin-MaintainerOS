@@ -278,6 +278,11 @@ export class CabinDatabase {
     await db.run('DELETE FROM cached_pull_requests');
   }
 
+  async updateCachedPullRequestStatus(id: string, reviewStatus: string): Promise<void> {
+    const db = this.getDb();
+    await db.run('UPDATE cached_pull_requests SET review_status = ? WHERE id = ?', reviewStatus, id);
+  }
+
   async close(): Promise<void> {
     if (this.db) {
       await this.db.close();

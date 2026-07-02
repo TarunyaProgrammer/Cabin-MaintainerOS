@@ -221,6 +221,7 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
       }));
 
       await get().loadRepositories();
+      window.electronAPI.playBeep().catch(() => {});
     } catch (err: any) {
       set((state) => ({
         activeReview: {
@@ -269,6 +270,7 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
           aiRunning: false,
         },
       }));
+      window.electronAPI.playBeep().catch(() => {});
     } catch (err: any) {
       set((state) => ({
         activeReview: {
@@ -308,6 +310,7 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
       // Refresh history & reviews
       await get().loadHistory();
       await get().fetchReviews();
+      window.electronAPI.playBeep().catch(() => {});
     } catch (err: any) {
       set({ error: err.message });
     }

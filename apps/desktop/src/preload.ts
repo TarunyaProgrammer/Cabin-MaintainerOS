@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Utilities
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('util:open-external', url),
   openLocalFolder: (localPath: string): Promise<void> => ipcRenderer.invoke('util:open-folder', localPath),
+  playBeep: (): Promise<void> => ipcRenderer.invoke('util:play-beep'),
 
   // Progress Logging listeners
   onReviewProgress: (callback: (data: { stepName: string; progress: number; status: string }) => void) => {

@@ -36,6 +36,7 @@ export interface ElectronAPI {
   getRepoAssignees: (owner: string, repo: string) => Promise<string[]>;
   openExternal: (url: string) => Promise<void>;
   openLocalFolder: (localPath: string) => Promise<void>;
+  playBeep: () => Promise<void>;
   onReviewProgress: (callback: (data: { stepName: string; progress: number; status: string }) => void) => () => void;
   onReviewLog: (callback: (data: string) => void) => () => void;
   onPendingReviewsUpdated: (callback: (prs: any[]) => void) => () => void;

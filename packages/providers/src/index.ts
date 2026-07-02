@@ -19,18 +19,60 @@ export class AntigravityProvider implements AIProvider {
     }
 
     return new Promise((resolve, reject) => {
-      onLog(`[Cabin AI] Spawning Antigravity CLI from ${executablePath} on PR #${prNumber}...\n`);
+      onLog(`[Cabin AI] Fetching git diff for PR #${prNumber}...\n`);
+      
+      let diff = '';
+      try {
+        const { execSync } = require('child_process');
+        diff = execSync('git diff origin/main...HEAD', { cwd: repoPath, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+      } catch {
+        try {
+          const { execSync } = require('child_process');
+          diff = execSync('git diff origin/master...HEAD', { cwd: repoPath, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+        } catch {
+          try {
+            const { execSync } = require('child_process');
+            diff = execSync('git diff HEAD~1', { cwd: repoPath, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+          } catch (e: any) {
+            diff = 'Could not retrieve git diff automatically.';
+          }
+        }
+      }
+
+      onLog(`[Cabin AI] Spawning Antigravity CLI from ${executablePath} in print mode on PR #${prNumber}...\n`);
+
+      const prompt = `Review the following git diff. Identify any bugs, security warnings, performance issues, accessibility problems, or code quality style violations. You MUST return your output strictly in JSON format matching this schema:
+{
+  "summary": "High-level summary of the findings",
+  "overallRisk": "high" | "medium" | "low",
+  "confidence": 95,
+  "highSeverityFindings": [{"file": "path/to/file.ts", "line": 12, "description": "...", "severity": "high", "suggestion": "..."}],
+  "mediumSeverityFindings": [{"file": "path/to/file.ts", "line": 12, "description": "...", "severity": "medium", "suggestion": "..."}],
+  "lowSeverityFindings": [{"file": "path/to/file.ts", "line": 12, "description": "...", "severity": "low", "suggestion": "..."}],
+  "filesMentioned": ["file1.ts", "file2.ts"],
+  "suggestions": ["suggestion1", "suggestion2"],
+  "estimatedApprovalRecommendation": "approve" | "request_changes"
+}
+
+Here is the git diff:
+${diff}`;
 
       const cmd = executablePath;
-      const args = ['review', '--pr', prNumber.toString()];
+      const args = ['--print', prompt, '--dangerously-skip-permissions'];
       
+      // Clean environment: omit language server hooks that cause agy to lock
+      const cleanEnv: Record<string, string> = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (k !== 'ANTIGRAVITY_LS_ADDRESS' && k !== 'ANTIGRAVITY_CSRF_TOKEN' && v !== undefined) {
+          cleanEnv[k] = v;
+        }
+      }
+      cleanEnv['GITHUB_TOKEN'] = token;
+
       const child = spawn(cmd, args, {
         cwd: repoPath,
-        shell: true,
-        env: {
-          ...process.env,
-          GITHUB_TOKEN: token,
-        },
+        stdio: ['ignore', 'pipe', 'pipe'], // Ignore stdin to prevent TTY block
+        env: cleanEnv,
       });
 
       let stdoutData = '';

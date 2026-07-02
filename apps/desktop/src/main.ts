@@ -191,6 +191,28 @@ function setupIpcHandlers() {
         }
       );
 
+      // Restore review status and past decisions from database to prevent overwrite on preparation complete
+      let reviewStatus: 'approve' | 'request_changes' | 'comment' | 'pending' = 'pending';
+      let pastDecisions: string[] = [];
+      try {
+        const cached = await db.getCachedPullRequests();
+        const matchCached = cached.find(p => p.prNumber === prNumber && p.repoOwner === owner && p.repoName === repoName);
+        if (matchCached && matchCached.reviewStatus !== 'pending') {
+          reviewStatus = matchCached.reviewStatus;
+        }
+
+        const sessions = await db.getReviewSessions();
+        const prSessions = sessions.filter(s => s.prNumber === prNumber && s.repoOwner === owner && s.repoName === repoName);
+        pastDecisions = Array.from(new Set(prSessions.map(s => s.decision)));
+        
+        if (reviewStatus === 'pending' && pastDecisions.length > 0) {
+          reviewStatus = pastDecisions[0] as any;
+        }
+      } catch {}
+      
+      result.pullRequest.reviewStatus = reviewStatus;
+      (result.pullRequest as any).pastDecisions = pastDecisions;
+
       // Save repository to database if not present
       await db.saveRepository({
         id: `${owner}/${repoName}`,
@@ -270,6 +292,10 @@ function setupIpcHandlers() {
         workerLogs: [],
       };
       await db.saveReviewSession(reviewSession);
+
+      // Update review status in cached pull requests table
+      const prId = `${owner}/${repo}/${prNumber}`;
+      await db.updateCachedPullRequestStatus(prId, action.toLowerCase());
     }
   );
 
@@ -321,6 +347,27 @@ function setupIpcHandlers() {
       const ghService = new GitHubService(settings.githubToken);
       const prDetails = await ghService.fetchPRDetails(owner, repo, prNumber);
       
+      // Query local database for previous decisions or cached review statuses
+      let reviewStatus: 'approve' | 'request_changes' | 'comment' | 'pending' = 'pending';
+      let pastDecisions: string[] = [];
+      try {
+        const cached = await db.getCachedPullRequests();
+        const matchCached = cached.find(p => p.prNumber === prNumber && p.repoOwner === owner && p.repoName === repo);
+        if (matchCached && matchCached.reviewStatus !== 'pending') {
+          reviewStatus = matchCached.reviewStatus;
+        }
+
+        const sessions = await db.getReviewSessions();
+        const prSessions = sessions.filter(s => s.prNumber === prNumber && s.repoOwner === owner && s.repoName === repo);
+        pastDecisions = Array.from(new Set(prSessions.map(s => s.decision)));
+        
+        if (reviewStatus === 'pending' && pastDecisions.length > 0) {
+          reviewStatus = pastDecisions[0] as any; // Fallback to latest
+        }
+      } catch (err) {
+        console.error('[fetch-pr-details] Database lookup failed:', err);
+      }
+
       const pr = {
         id: `${owner}/${repo}/${prNumber}`,
         prNumber,
@@ -337,7 +384,8 @@ function setupIpcHandlers() {
         dcoStatus: 'unknown',
         lastUpdated: prDetails.updated_at,
         aiStatus: 'pending',
-        reviewStatus: 'pending',
+        reviewStatus,
+        pastDecisions,
         branchName: prDetails.head.ref,
         targetBranch: prDetails.base.ref || 'main',
         description: prDetails.body || '',
@@ -374,6 +422,10 @@ function setupIpcHandlers() {
 
   ipcMain.handle('util:open-folder', async (_event: any, localPath: string) => {
     await shell.openPath(localPath);
+  });
+
+  ipcMain.handle('util:play-beep', async () => {
+    shell.beep();
   });
 }
 
