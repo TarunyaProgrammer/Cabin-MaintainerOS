@@ -42,6 +42,7 @@ export interface ElectronAPI {
   onPendingReviewsUpdated: (callback: (prs: any[]) => void) => () => void;
   askAntigravity: (repoPath: string, prNumber: number, question: string, context: string) => Promise<string>;
   onAntigravityChatResponse: (callback: (data: string) => void) => () => void;
+  resolveReviewLocally: (owner: string, repo: string, prNumber: number, commentText: string) => Promise<void>;
 }
 
 declare global {

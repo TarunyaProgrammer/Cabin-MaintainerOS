@@ -53,6 +53,7 @@ interface CabinStore {
   removeAssignees: (assignees: string[]) => Promise<void>;
   resetActiveReview: () => void;
   sendChatMessage: (question: string, context: string) => Promise<void>;
+  resolveReviewLocally: (comment: string) => Promise<void>;
 }
 
 export const useCabinStore = create<CabinStore>((set, get) => ({
@@ -493,6 +494,33 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
       }));
     } finally {
       unsubscribe();
+    }
+  },
+
+  resolveReviewLocally: async (comment) => {
+    const { pullRequest } = get().activeReview;
+    if (!pullRequest) return;
+    try {
+      await window.electronAPI.resolveReviewLocally(
+        pullRequest.repoOwner,
+        pullRequest.repoName,
+        pullRequest.prNumber,
+        comment
+      );
+      // Update review status in active state
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          pullRequest: state.activeReview.pullRequest
+            ? { ...state.activeReview.pullRequest, reviewStatus: 'approve' }
+            : null,
+        },
+      }));
+      await get().loadHistory();
+      await get().fetchReviews();
+      window.electronAPI.playBeep().catch(() => {});
+    } catch (err: any) {
+      set({ error: err.message });
     }
   },
 }));

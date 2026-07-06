@@ -275,6 +275,51 @@ function setupIpcHandlers() {
     return response;
   });
 
+  // Resolve review locally in local database (bypasses GitHub)
+  ipcMain.handle(
+    'review:resolve-locally',
+    async (_event: any, owner: string, repo: string, prNumber: number, commentText: string) => {
+      if (!db) throw new Error('Database not initialized');
+
+      // Record in local review sessions database
+      const reviewSession: ReviewSession = {
+        id: `${owner}-${repo}-${prNumber}-local-${Date.now()}`,
+        prNumber,
+        repositoryId: `${owner}/${repo}`,
+        repoName: repo,
+        repoOwner: owner,
+        decision: 'approve', // Treat as approved for Badges
+        reviewedAt: new Date().toISOString(),
+        aiSummary: commentText.substring(0, 200) || 'Marked completed manually.',
+        reviewResult: {
+          summary: commentText || 'PR marked completed manually.',
+          overallRisk: 'low',
+          confidence: 100,
+          highSeverityFindings: [],
+          mediumSeverityFindings: [],
+          lowSeverityFindings: [],
+          filesMentioned: [],
+          suggestions: [],
+          estimatedApprovalRecommendation: 'approve',
+        },
+        discussionSummary: {
+          summary: 'Review resolved locally in Cabin.',
+          requestedChanges: [],
+          questions: [],
+          pendingReplies: [],
+          resolvedDiscussions: 0,
+          openConversations: 0,
+        },
+        workerLogs: [],
+      };
+      await db.saveReviewSession(reviewSession);
+
+      // Update review status in cached pull requests table
+      const prId = `${owner}/${repo}/${prNumber}`;
+      await db.updateCachedPullRequestStatus(prId, 'approve');
+    }
+  );
+
   // Submit final review decision to GitHub
   ipcMain.handle(
     'github:submit-review',

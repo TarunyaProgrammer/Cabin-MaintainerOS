@@ -71,7 +71,8 @@ export const ReviewPage: React.FC = () => {
     addAssignees,
     removeAssignees,
     resetActiveReview,
-    sendChatMessage
+    sendChatMessage,
+    resolveReviewLocally
   } = useCabinStore();
 
   const [chatExpanded, setChatExpanded] = useState(false);
@@ -79,7 +80,7 @@ export const ReviewPage: React.FC = () => {
 
   const [activeLeftTab, setActiveLeftTab] = useState<'checks' | 'discussion' | 'context'>('checks');
   const [commentDraft, setCommentDraft] = useState('');
-  const [showDecisionModal, setShowDecisionModal] = useState<'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT' | null>(null);
+  const [showDecisionModal, setShowDecisionModal] = useState<'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT' | 'RESOLVE_LOCALLY' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [repoLabels, setRepoLabels] = useState<string[]>([]);
   const [repoAssignees, setRepoAssignees] = useState<string[]>([]);
@@ -268,16 +269,20 @@ Discussion Summary: ${discussionSummary?.summary || 'None'}
     if (!showDecisionModal) return;
     setSubmitting(true);
     try {
-      await submitReviewDecision(showDecisionModal, commentDraft);
-      if (pendingChore === 'DCO') {
-        localStorage.setItem(`cabin:dco-requested:${pullRequest.id}`, 'true');
-      } else if (pendingChore === 'REBASE') {
-        localStorage.setItem(`cabin:rebase-requested:${pullRequest.id}`, 'true');
+      if (showDecisionModal === 'RESOLVE_LOCALLY') {
+        await resolveReviewLocally(commentDraft);
+      } else {
+        await submitReviewDecision(showDecisionModal, commentDraft);
+        if (pendingChore === 'DCO') {
+          localStorage.setItem(`cabin:dco-requested:${pullRequest.id}`, 'true');
+        } else if (pendingChore === 'REBASE') {
+          localStorage.setItem(`cabin:rebase-requested:${pullRequest.id}`, 'true');
+        }
+        
+        // Save decision in localStorage
+        const decisionType = showDecisionModal === 'APPROVE' ? 'approve' : showDecisionModal === 'REQUEST_CHANGES' ? 'request_changes' : 'comment';
+        localStorage.setItem(`cabin:decision:${decisionType}:${pullRequest.id}`, 'true');
       }
-      
-      // Save decision in localStorage
-      const decisionType = showDecisionModal === 'APPROVE' ? 'approve' : showDecisionModal === 'REQUEST_CHANGES' ? 'request_changes' : 'comment';
-      localStorage.setItem(`cabin:decision:${decisionType}:${pullRequest.id}`, 'true');
 
       setShowDecisionModal(null);
       setPendingChore(null);
@@ -1087,6 +1092,24 @@ Discussion Summary: ${discussionSummary?.summary || 'None'}
                       Submits general observations/questions without blocking or approving the PR.
                     </p>
                   </div>
+
+                  <div className="space-y-1 mt-3 border-t border-zinc-200 pt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        disabled={pipelineRunning}
+                        onClick={() => {
+                          setCommentDraft('');
+                          setShowDecisionModal('RESOLVE_LOCALLY');
+                        }}
+                        className="ui-button-secondary bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700 flex-1 py-2.5 text-xs font-bold"
+                      >
+                        Mark Completed Locally
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-zinc-500 px-1 leading-normal">
+                      Saves to local History and removes this PR from your queue without calling GitHub API.
+                    </p>
+                  </div>
                 </>
               );
             })()}
@@ -1108,7 +1131,8 @@ Discussion Summary: ${discussionSummary?.summary || 'None'}
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-indigo-500" />
                   {showDecisionModal === 'APPROVE' ? 'Confirm Approval' :
-                   showDecisionModal === 'REQUEST_CHANGES' ? 'Confirm Request Changes' : 'Confirm Comment'}
+                   showDecisionModal === 'REQUEST_CHANGES' ? 'Confirm Request Changes' :
+                   showDecisionModal === 'RESOLVE_LOCALLY' ? 'Resolve Review Locally' : 'Confirm Comment'}
                 </span>
                 <button 
                   onClick={() => setShowDecisionModal(null)}
@@ -1172,7 +1196,7 @@ Discussion Summary: ${discussionSummary?.summary || 'None'}
                   className="ui-button-primary px-5 py-2.5 text-xs font-bold flex items-center gap-1.5"
                 >
                   {submitting && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-                  <span>Submit to GitHub</span>
+                  <span>{showDecisionModal === 'RESOLVE_LOCALLY' ? 'Mark Completed Locally' : 'Submit to GitHub'}</span>
                 </button>
               </div>
             </motion.div>

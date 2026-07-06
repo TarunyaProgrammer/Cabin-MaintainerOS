@@ -86,5 +86,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event: any, data: string) => callback(data);
     ipcRenderer.on('review:chat-log', listener);
     return () => ipcRenderer.removeListener('review:chat-log', listener);
-  }
+  },
+
+  resolveReviewLocally: (owner: string, repo: string, prNumber: number, commentText: string): Promise<void> =>
+    ipcRenderer.invoke('review:resolve-locally', owner, repo, prNumber, commentText)
 });
