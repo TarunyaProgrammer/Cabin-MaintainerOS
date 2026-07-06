@@ -53,7 +53,7 @@ interface CabinStore {
   removeAssignees: (assignees: string[]) => Promise<void>;
   resetActiveReview: () => void;
   sendChatMessage: (question: string, context: string) => Promise<void>;
-  resolveReviewLocally: (comment: string) => Promise<void>;
+  resolveReviewLocally: (owner: string, repo: string, prNumber: number, comment: string) => Promise<void>;
 }
 
 export const useCabinStore = create<CabinStore>((set, get) => ({
@@ -497,25 +497,23 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
     }
   },
 
-  resolveReviewLocally: async (comment) => {
-    const { pullRequest } = get().activeReview;
-    if (!pullRequest) return;
+  resolveReviewLocally: async (owner, repo, prNumber, comment) => {
     try {
       await window.electronAPI.resolveReviewLocally(
-        pullRequest.repoOwner,
-        pullRequest.repoName,
-        pullRequest.prNumber,
+        owner,
+        repo,
+        prNumber,
         comment
       );
-      // Update review status in active state
-      set((state) => ({
-        activeReview: {
-          ...state.activeReview,
-          pullRequest: state.activeReview.pullRequest
-            ? { ...state.activeReview.pullRequest, reviewStatus: 'approve' }
-            : null,
-        },
-      }));
+      const active = get().activeReview.pullRequest;
+      if (active && active.repoOwner === owner && active.repoName === repo && active.prNumber === prNumber) {
+        set((state) => ({
+          activeReview: {
+            ...state.activeReview,
+            pullRequest: { ...active, reviewStatus: 'approve' },
+          },
+        }));
+      }
       await get().loadHistory();
       await get().fetchReviews();
       window.electronAPI.playBeep().catch(() => {});

@@ -270,7 +270,7 @@ Discussion Summary: ${discussionSummary?.summary || 'None'}
     setSubmitting(true);
     try {
       if (showDecisionModal === 'RESOLVE_LOCALLY') {
-        await resolveReviewLocally(commentDraft);
+        await resolveReviewLocally(pullRequest.repoOwner, pullRequest.repoName, pullRequest.prNumber, commentDraft);
       } else {
         await submitReviewDecision(showDecisionModal, commentDraft);
         if (pendingChore === 'DCO') {
