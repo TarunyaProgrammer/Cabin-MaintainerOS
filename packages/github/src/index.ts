@@ -135,11 +135,15 @@ export class GitHubService {
         }
       } catch {}
 
+      // Check if user is explicitly requested to review (e.g. for re-reviews)
+      const isReviewRequested = prDetail.requested_reviewers?.some((r: any) => r.login === username) || false;
+
       // Fresh activity rule:
       // Include if:
       // 1. User has never interacted yet (latestUserActionTime === 0).
       // 2. OR someone else submitted a review, comment, or commit after user's latest interaction.
-      const hasFreshActivity = latestUserActionTime === 0 || latestOtherActionTime > latestUserActionTime;
+      // 3. OR the user is explicitly requested to review/re-review the PR.
+      const hasFreshActivity = latestUserActionTime === 0 || latestOtherActionTime > latestUserActionTime || isReviewRequested;
 
       // Exclude stale PRs (inactive for >30 days) to prevent backlog clutter
       const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;

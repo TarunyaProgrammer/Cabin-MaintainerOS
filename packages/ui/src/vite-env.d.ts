@@ -40,6 +40,8 @@ export interface ElectronAPI {
   onReviewProgress: (callback: (data: { stepName: string; progress: number; status: string }) => void) => () => void;
   onReviewLog: (callback: (data: string) => void) => () => void;
   onPendingReviewsUpdated: (callback: (prs: any[]) => void) => () => void;
+  askAntigravity: (repoPath: string, prNumber: number, question: string, context: string) => Promise<string>;
+  onAntigravityChatResponse: (callback: (data: string) => void) => () => void;
 }
 
 declare global {

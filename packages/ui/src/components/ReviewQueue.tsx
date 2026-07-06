@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -10,10 +10,45 @@ import {
   CheckCircle,
   XCircle,
   HelpCircle,
-  Cpu
+  Cpu,
+  Layers,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronRight,
+  FolderGit2
 } from 'lucide-react';
 import { useCabinStore } from '../store';
 import { PullRequest, CheckStatus } from '@cabin/shared';
+
+type GroupBy = 'none' | 'repo';
+type SortBy = 'newest' | 'oldest' | 'alpha';
+
+const sortReviews = (reviews: PullRequest[], sortBy: SortBy): PullRequest[] => {
+  return [...reviews].sort((a, b) => {
+    switch (sortBy) {
+      case 'newest':
+        return new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime();
+      case 'oldest':
+        return new Date(a.requestedDate).getTime() - new Date(b.requestedDate).getTime();
+      case 'alpha':
+        return a.title.localeCompare(b.title);
+      default:
+        return 0;
+    }
+  });
+};
+
+const groupReviewsByRepo = (reviews: PullRequest[]): Map<string, PullRequest[]> => {
+  const groups = new Map<string, PullRequest[]>();
+  for (const pr of reviews) {
+    const key = pr.repositoryId;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(pr);
+  }
+  return groups;
+};
 
 export const ReviewQueue: React.FC = () => {
   const navigate = useNavigate();
@@ -24,6 +59,10 @@ export const ReviewQueue: React.FC = () => {
     settings, 
     setActiveReviewPR 
   } = useCabinStore();
+
+  const [groupBy, setGroupBy] = useState<GroupBy>('repo');
+  const [sortBy, setSortBy] = useState<SortBy>('newest');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (settings.githubToken) {
@@ -41,6 +80,31 @@ export const ReviewQueue: React.FC = () => {
     const url = `https://github.com/${owner}/${repo}/pull/${number}`;
     window.electronAPI.openExternal(url);
   };
+
+  const toggleGroupCollapse = (groupKey: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
+
+  // Sorted & grouped data
+  const sortedReviews = useMemo(() => sortReviews(reviews, sortBy), [reviews, sortBy]);
+  const groupedReviews = useMemo(() => {
+    if (groupBy === 'repo') {
+      const groups = groupReviewsByRepo(sortedReviews);
+      for (const [key, prs] of groups) {
+        groups.set(key, sortReviews(prs, sortBy));
+      }
+      return groups;
+    }
+    return null;
+  }, [sortedReviews, groupBy, sortBy]);
 
   // Helper to render check status badges
   const renderStatusBadge = (status: CheckStatus, label: string) => {
@@ -89,6 +153,87 @@ export const ReviewQueue: React.FC = () => {
     hidden: { opacity: 0, y: 10 },
     show: { opacity: 1, y: 0 }
   };
+
+  const renderPRCard = (pr: PullRequest) => (
+    <motion.div 
+      key={pr.id} 
+      variants={itemVariants}
+      onClick={() => handlePrepareReview(pr)}
+      className="ui-card p-5 cursor-pointer hover:border-zinc-300 active:scale-[0.99] transition-all"
+    >
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Left Column: Info & Details */}
+        <div className="space-y-2 flex-1 min-w-0">
+          <div className="flex items-center gap-2 select-none text-[11px] font-semibold text-zinc-400">
+            <span>{pr.repositoryId}</span>
+            <span>•</span>
+            <span className="font-mono">#{pr.prNumber}</span>
+          </div>
+          
+          <h3 className="text-sm font-bold text-zinc-800 line-clamp-2 hover:text-zinc-900 transition-colors">{pr.title}</h3>
+          
+          <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 select-none">
+            <div className="flex items-center gap-1.5 bg-zinc-50 px-2 py-0.5 rounded-lg border border-zinc-200">
+              {pr.authorAvatarUrl ? (
+                <img src={pr.authorAvatarUrl} alt="" className="h-5 w-5 rounded-full border border-zinc-200 shrink-0" />
+              ) : (
+                <div className="h-5 w-5 rounded-full bg-zinc-200 shrink-0" />
+              )}
+              <span className="font-bold text-zinc-600">@{pr.author}</span>
+            </div>
+            <span>•</span>
+            <span>Requested: {new Date(pr.requestedDate).toLocaleDateString()}</span>
+            
+            {pr.labels.length > 0 && (
+              <>
+                <span>•</span>
+                <div className="flex items-center gap-1">
+                  {pr.labels.slice(0, 3).map(label => (
+                    <span key={label} className="bg-zinc-50 text-zinc-500 px-2 py-0.5 rounded-md text-[9px] font-semibold border border-zinc-200">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Check Badges & Trigger */}
+        <div className="flex items-center gap-4 select-none shrink-0 justify-between md:justify-end border-t md:border-t-0 md:border-l border-zinc-200 pt-3 md:pt-0 md:pl-5">
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-1.5">
+              {renderStatusBadge(pr.ciStatus, 'CI')}
+              {renderStatusBadge(pr.mergeConflictStatus, 'Mergeable')}
+            </div>
+            
+            <div className="flex items-center gap-1 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-0.5 text-[9px] font-mono text-zinc-500 uppercase">
+              <Cpu className="h-3 w-3 text-indigo-500 shrink-0" />
+              <span>AI: {pr.aiStatus}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={(e) => openOnGitHub(e, pr.repoOwner, pr.repoName, pr.prNumber)}
+              className="p-2 text-zinc-500 hover:text-zinc-800 rounded-xl hover:bg-zinc-50 border border-zinc-200 transition-colors"
+              title="Open on GitHub"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </button>
+            
+            <button 
+              onClick={() => handlePrepareReview(pr)}
+              className="ui-button-primary flex items-center gap-1.5 px-4 py-2 text-xs font-bold"
+            >
+              <Play className="h-3.5 w-3.5 fill-current" />
+              <span>Review</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -143,93 +288,98 @@ export const ReviewQueue: React.FC = () => {
           </p>
         </div>
       ) : (
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className="space-y-4"
-        >
-          {reviews.map((pr) => (
-            <motion.div 
-              key={pr.id} 
-              variants={itemVariants}
-              onClick={() => handlePrepareReview(pr)}
-              className="ui-card p-5 cursor-pointer hover:border-zinc-300 active:scale-[0.99] transition-all"
-            >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                {/* Left Column: Info & Details */}
-                <div className="space-y-2 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 select-none text-[11px] font-semibold text-zinc-400">
-                    <span>{pr.repositoryId}</span>
-                    <span>•</span>
-                    <span className="font-mono">#{pr.prNumber}</span>
-                  </div>
-                  
-                  <h3 className="text-sm font-bold text-zinc-800 line-clamp-2 hover:text-zinc-900 transition-colors">{pr.title}</h3>
-                  
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 select-none">
-                    <div className="flex items-center gap-1.5 bg-zinc-50 px-2 py-0.5 rounded-lg border border-zinc-200">
-                      {pr.authorAvatarUrl ? (
-                        <img src={pr.authorAvatarUrl} alt="" className="h-5 w-5 rounded-full border border-zinc-200 shrink-0" />
+        <>
+          {/* Grouping & Sorting Toolbar */}
+          <div className="flex items-center justify-between bg-white border border-zinc-200 rounded-2xl px-4 py-2.5 select-none">
+            <div className="flex items-center gap-4">
+              {/* Group By */}
+              <div className="flex items-center gap-2">
+                <Layers className="h-3.5 w-3.5 text-zinc-400" />
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Group</span>
+                <select
+                  value={groupBy}
+                  onChange={(e) => {
+                    setGroupBy(e.target.value as GroupBy);
+                    setCollapsedGroups(new Set());
+                  }}
+                  className="text-xs font-semibold text-zinc-700 bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 outline-none cursor-pointer hover:border-zinc-300 transition-colors"
+                >
+                  <option value="none">None (Flat List)</option>
+                  <option value="repo">By Repository</option>
+                </select>
+              </div>
+
+              {/* Sort By */}
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="h-3.5 w-3.5 text-zinc-400" />
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Sort</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortBy)}
+                  className="text-xs font-semibold text-zinc-700 bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 outline-none cursor-pointer hover:border-zinc-300 transition-colors"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="alpha">Alphabetical</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="text-[10px] font-mono text-zinc-400">
+              {reviews.length} review{reviews.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+
+          {/* Render: Grouped or Flat */}
+          {groupBy === 'repo' && groupedReviews ? (
+            <div className="space-y-5">
+              {Array.from(groupedReviews.entries()).map(([repoId, prs]) => {
+                const isCollapsed = collapsedGroups.has(repoId);
+                return (
+                  <div key={repoId} className="space-y-3">
+                    {/* Group Header */}
+                    <button
+                      onClick={() => toggleGroupCollapse(repoId)}
+                      className="flex items-center gap-2.5 w-full text-left px-2 py-1.5 rounded-xl hover:bg-zinc-50 transition-colors group"
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 transition-colors" />
                       ) : (
-                        <div className="h-5 w-5 rounded-full bg-zinc-200 shrink-0" />
+                        <ChevronDown className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 transition-colors" />
                       )}
-                      <span className="font-bold text-zinc-600">@{pr.author}</span>
-                    </div>
-                    <span>•</span>
-                    <span>Requested: {new Date(pr.requestedDate).toLocaleDateString()}</span>
-                    
-                    {pr.labels.length > 0 && (
-                      <>
-                        <span>•</span>
-                        <div className="flex items-center gap-1">
-                          {pr.labels.slice(0, 3).map(label => (
-                            <span key={label} className="bg-zinc-50 text-zinc-500 px-2 py-0.5 rounded-md text-[9px] font-semibold border border-zinc-200">
-                              {label}
-                            </span>
-                          ))}
-                        </div>
-                      </>
+                      <FolderGit2 className="h-4 w-4 text-indigo-500" />
+                      <span className="text-xs font-bold text-zinc-700">{repoId}</span>
+                      <span className="text-[10px] font-mono text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-md border border-zinc-200">
+                        {prs.length} PR{prs.length !== 1 ? 's' : ''}
+                      </span>
+                    </button>
+
+                    {/* Group Content */}
+                    {!isCollapsed && (
+                      <motion.div
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="show"
+                        className="space-y-3 pl-2 border-l-2 border-zinc-200 ml-2"
+                      >
+                        {prs.map(renderPRCard)}
+                      </motion.div>
                     )}
                   </div>
-                </div>
-
-                {/* Right Column: Check Badges & Trigger */}
-                <div className="flex items-center gap-4 select-none shrink-0 justify-between md:justify-end border-t md:border-t-0 md:border-l border-zinc-200 pt-3 md:pt-0 md:pl-5">
-                  <div className="flex flex-col items-end gap-1.5">
-                    <div className="flex items-center gap-1.5">
-                      {renderStatusBadge(pr.ciStatus, 'CI')}
-                      {renderStatusBadge(pr.mergeConflictStatus, 'Mergeable')}
-                    </div>
-                    
-                    <div className="flex items-center gap-1 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-0.5 text-[9px] font-mono text-zinc-500 uppercase">
-                      <Cpu className="h-3 w-3 text-indigo-500 shrink-0" />
-                      <span>AI: {pr.aiStatus}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={(e) => openOnGitHub(e, pr.repoOwner, pr.repoName, pr.prNumber)}
-                      className="p-2 text-zinc-500 hover:text-zinc-800 rounded-xl hover:bg-zinc-50 border border-zinc-200 transition-colors"
-                      title="Open on GitHub"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </button>
-                    
-                    <button 
-                      onClick={() => handlePrepareReview(pr)}
-                      className="ui-button-primary flex items-center gap-1.5 px-4 py-2 text-xs font-bold"
-                    >
-                      <Play className="h-3.5 w-3.5 fill-current" />
-                      <span>Review</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
+            </div>
+          ) : (
+            <motion.div 
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+              className="space-y-4"
+            >
+              {sortedReviews.map(renderPRCard)}
             </motion.div>
-          ))}
-        </motion.div>
+          )}
+        </>
       )}
     </div>
   );

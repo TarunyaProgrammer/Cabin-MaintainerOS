@@ -77,5 +77,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event: any, data: any[]) => callback(data);
     ipcRenderer.on('github:pending-updated', listener);
     return () => ipcRenderer.removeListener('github:pending-updated', listener);
+  },
+
+  askAntigravity: (repoPath: string, prNumber: number, question: string, context: string): Promise<string> =>
+    ipcRenderer.invoke('review:chat', repoPath, prNumber, question, context),
+
+  onAntigravityChatResponse: (callback: (data: string) => void) => {
+    const listener = (_event: any, data: string) => callback(data);
+    ipcRenderer.on('review:chat-log', listener);
+    return () => ipcRenderer.removeListener('review:chat-log', listener);
   }
 });

@@ -3,9 +3,85 @@ import { ReviewResult, Finding } from '@cabin/shared';
 
 export interface AIProvider {
   review(repoPath: string, prNumber: number, token: string, executablePath: string, onLog: (data: string) => void): Promise<ReviewResult>;
+  chat(repoPath: string, prNumber: number, token: string, executablePath: string, question: string, context: string, onLog: (data: string) => void): Promise<string>;
 }
 
 export class AntigravityProvider implements AIProvider {
+  async chat(
+    repoPath: string,
+    prNumber: number,
+    token: string,
+    executablePath: string,
+    question: string,
+    context: string,
+    onLog: (data: string) => void
+  ): Promise<string> {
+    if (!executablePath || executablePath.toLowerCase() === 'mock' || executablePath.toLowerCase() === 'demo') {
+      onLog(`[Cabin Chat Simulation] Thinking...\n`);
+      await new Promise(r => setTimeout(r, 800));
+      onLog(`[Cabin Chat Simulation] Generating response...\n`);
+      await new Promise(r => setTimeout(r, 600));
+      const simulatedResponse = `This is a simulated response to your question: "${question}" about PR #${prNumber}.\n\nBased on the PR context (findings and diff), the code looks fine, but make sure to check for accessibility and security standard patterns.`;
+      onLog(simulatedResponse);
+      return simulatedResponse;
+    }
+
+    return new Promise((resolve, reject) => {
+      onLog(`[Cabin Chat] Preparing chat prompt...\n`);
+      const prompt = `You are Antigravity, an AI assistant. Answer the user's question about Pull Request #${prNumber}.
+Here is the PR Context (Diff/Findings/Summary):
+${context}
+
+User Question: ${question}`;
+
+      const cmd = executablePath;
+      const args = ['--print', prompt, '--dangerously-skip-permissions'];
+      
+      const cleanEnv: Record<string, string> = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (k !== 'ANTIGRAVITY_LS_ADDRESS' && k !== 'ANTIGRAVITY_CSRF_TOKEN' && v !== undefined) {
+          cleanEnv[k] = v;
+        }
+      }
+      cleanEnv['GITHUB_TOKEN'] = token;
+
+      const child = spawn(cmd, args, {
+        cwd: repoPath,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: cleanEnv,
+      });
+
+      let stdoutData = '';
+      let stderrData = '';
+
+      child.stdout.on('data', (data: any) => {
+        const chunk = data.toString();
+        stdoutData += chunk;
+        onLog(chunk);
+      });
+
+      child.stderr.on('data', (data: any) => {
+        const chunk = data.toString();
+        stderrData += chunk;
+        onLog(`[CLI Error] ${chunk}`);
+      });
+
+      child.on('close', (code: any) => {
+        if (code !== 0) {
+          onLog(`[Cabin Chat] Process exited with code ${code}\n`);
+          reject(new Error(`Antigravity chat failed with code ${code}. Error: ${stderrData}`));
+          return;
+        }
+        resolve(stdoutData);
+      });
+
+      child.on('error', (err: any) => {
+        onLog(`[Cabin Chat] Failed to start process: ${err.message}\n`);
+        reject(err);
+      });
+    });
+  }
+
   async review(
     repoPath: string,
     prNumber: number,

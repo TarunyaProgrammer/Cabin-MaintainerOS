@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { Settings, Repository, PullRequest, ReviewSession, ReviewResult, DiscussionSummary, RepositoryContext, WorkerLog } from '@cabin/shared';
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
 interface ActiveReviewState {
   pullRequest: PullRequest | null;
   discussionSummary: DiscussionSummary | null;
@@ -12,6 +18,9 @@ interface ActiveReviewState {
   pipelineProgress: { stepName: string; progress: number; status: string } | null;
   aiRunning: boolean;
   aiLogs: string;
+  chatMessages: ChatMessage[];
+  chatLoading: boolean;
+  chatStreamingResponse: string;
 }
 
 interface CabinStore {
@@ -43,6 +52,7 @@ interface CabinStore {
   addAssignees: (assignees: string[]) => Promise<void>;
   removeAssignees: (assignees: string[]) => Promise<void>;
   resetActiveReview: () => void;
+  sendChatMessage: (question: string, context: string) => Promise<void>;
 }
 
 export const useCabinStore = create<CabinStore>((set, get) => ({
@@ -70,6 +80,9 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
     pipelineProgress: null,
     aiRunning: false,
     aiLogs: '',
+    chatMessages: [],
+    chatLoading: false,
+    chatStreamingResponse: '',
   },
 
   loadSettings: async () => {
@@ -143,6 +156,9 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
         pipelineProgress: null,
         aiRunning: false,
         aiLogs: '',
+        chatMessages: [],
+        chatLoading: false,
+        chatStreamingResponse: '',
       },
     }));
   },
@@ -163,6 +179,9 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
           pipelineProgress: null,
           aiRunning: false,
           aiLogs: '',
+          chatMessages: [],
+          chatLoading: false,
+          chatStreamingResponse: '',
         },
       }));
     } catch (err: any) {
@@ -401,7 +420,79 @@ export const useCabinStore = create<CabinStore>((set, get) => ({
         pipelineProgress: null,
         aiRunning: false,
         aiLogs: '',
+        chatMessages: [],
+        chatLoading: false,
+        chatStreamingResponse: '',
       },
     }));
+  },
+
+  sendChatMessage: async (question, context) => {
+    const { pullRequest, localPath } = get().activeReview;
+    if (!pullRequest || !localPath) return;
+
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: question,
+      timestamp: Date.now(),
+    };
+
+    set((state) => ({
+      activeReview: {
+        ...state.activeReview,
+        chatMessages: [...state.activeReview.chatMessages, userMsg],
+        chatLoading: true,
+        chatStreamingResponse: '',
+      },
+    }));
+
+    const unsubscribe = window.electronAPI.onAntigravityChatResponse((chunk) => {
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          chatStreamingResponse: state.activeReview.chatStreamingResponse + chunk,
+        },
+      }));
+    });
+
+    try {
+      const fullResponse = await window.electronAPI.askAntigravity(
+        localPath,
+        pullRequest.prNumber,
+        question,
+        context
+      );
+
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: fullResponse || get().activeReview.chatStreamingResponse,
+        timestamp: Date.now(),
+      };
+
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          chatMessages: [...state.activeReview.chatMessages, assistantMsg],
+          chatLoading: false,
+          chatStreamingResponse: '',
+        },
+      }));
+    } catch (err: any) {
+      const errorMsg: ChatMessage = {
+        role: 'assistant',
+        content: `Error communicating with Antigravity: ${err.message}`,
+        timestamp: Date.now(),
+      };
+      set((state) => ({
+        activeReview: {
+          ...state.activeReview,
+          chatMessages: [...state.activeReview.chatMessages, errorMsg],
+          chatLoading: false,
+          chatStreamingResponse: '',
+        },
+      }));
+    } finally {
+      unsubscribe();
+    }
   },
 }));

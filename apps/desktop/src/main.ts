@@ -251,6 +251,30 @@ function setupIpcHandlers() {
     return reviewResult;
   });
 
+  // Chat with Antigravity AI CLI
+  ipcMain.handle('review:chat', async (_event: any, repoPath: string, prNumber: number, question: string, context: string) => {
+    if (!db || !mainWindow) throw new Error('App or DB not ready');
+    const settings = await db.getSettings();
+    const token = settings.githubToken;
+    const cliPath = settings.antigravityPath || 'mock';
+
+    const aiProvider = new AntigravityProvider();
+    const response = await aiProvider.chat(
+      repoPath,
+      prNumber,
+      token,
+      cliPath,
+      question,
+      context,
+      (logChunk: string) => {
+        if (mainWindow) {
+          mainWindow.webContents.send('review:chat-log', logChunk);
+        }
+      }
+    );
+    return response;
+  });
+
   // Submit final review decision to GitHub
   ipcMain.handle(
     'github:submit-review',
