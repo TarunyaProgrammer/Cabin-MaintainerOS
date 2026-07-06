@@ -93,8 +93,9 @@ export const ReviewQueue: React.FC = () => {
     });
   };
 
-  // Sorted & grouped data
-  const sortedReviews = useMemo(() => sortReviews(reviews, sortBy), [reviews, sortBy]);
+  // Filter out pull requests that have already been reviewed (reviewStatus !== 'pending')
+  const pendingReviews = useMemo(() => reviews.filter(pr => pr.reviewStatus === 'pending'), [reviews]);
+  const sortedReviews = useMemo(() => sortReviews(pendingReviews, sortBy), [pendingReviews, sortBy]);
   const groupedReviews = useMemo(() => {
     if (groupBy === 'repo') {
       const groups = groupReviewsByRepo(sortedReviews);
@@ -279,7 +280,7 @@ export const ReviewQueue: React.FC = () => {
             <div key={i} className="h-32 bg-white border border-appBorder animate-pulse rounded-2xl" />
           ))}
         </div>
-      ) : reviews.length === 0 ? (
+      ) : pendingReviews.length === 0 ? (
         <div className="ui-card p-12 text-center space-y-3 max-w-lg mx-auto">
           <GitPullRequest className="h-10 w-10 text-zinc-400 mx-auto" />
           <h3 className="text-base font-bold text-zinc-800">Review Queue Empty</h3>
@@ -326,7 +327,7 @@ export const ReviewQueue: React.FC = () => {
             </div>
 
             <div className="text-[10px] font-mono text-zinc-400">
-              {reviews.length} review{reviews.length !== 1 ? 's' : ''}
+              {pendingReviews.length} review{pendingReviews.length !== 1 ? 's' : ''}
             </div>
           </div>
 
