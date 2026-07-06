@@ -49,6 +49,14 @@ export const ReviewResultSchema = z.object({
 });
 export type ReviewResult = z.infer<typeof ReviewResultSchema>;
 
+export const ReviewItemSchema = z.object({
+  reviewer: z.string(),
+  state: z.string(),
+  submittedAt: z.string().optional(),
+  body: z.string().optional(),
+});
+export type ReviewItem = z.infer<typeof ReviewItemSchema>;
+
 // Discussion Summary Schema
 export const DiscussionSummarySchema = z.object({
   summary: z.string(),
@@ -57,6 +65,7 @@ export const DiscussionSummarySchema = z.object({
   pendingReplies: z.array(z.string()).default([]),
   resolvedDiscussions: z.number().default(0),
   openConversations: z.number().default(0),
+  reviewsList: z.array(ReviewItemSchema).default([]),
 });
 export type DiscussionSummary = z.infer<typeof DiscussionSummarySchema>;
 

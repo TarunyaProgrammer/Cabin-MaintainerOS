@@ -309,6 +309,7 @@ function setupIpcHandlers() {
           pendingReplies: [],
           resolvedDiscussions: 0,
           openConversations: 0,
+          reviewsList: [],
         },
         workerLogs: [],
       };
@@ -357,6 +358,7 @@ function setupIpcHandlers() {
           pendingReplies: [],
           resolvedDiscussions: 0,
           openConversations: 0,
+          reviewsList: [],
         },
         workerLogs: [],
       };

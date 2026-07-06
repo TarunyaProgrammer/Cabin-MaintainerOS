@@ -477,6 +477,54 @@ Discussion Summary: ${discussionSummary?.summary || 'None'}
                       {renderMarkdown(discussionSummary.summary)}
                     </div>
                     
+                    {/* Reviewers decisions */}
+                    {discussionSummary.reviewsList && discussionSummary.reviewsList.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider pl-1 block">Reviewer Decisions:</span>
+                        <div className="space-y-2.5">
+                          {discussionSummary.reviewsList.map((rev, i) => {
+                            const isApproved = rev.state === 'APPROVED';
+                            const isChanges = rev.state === 'CHANGES_REQUESTED';
+                            const isDismissed = rev.state === 'DISMISSED';
+                            
+                            let badgeColor = "bg-zinc-50 text-zinc-700 border-zinc-200";
+                            let stateLabel = rev.state;
+                            if (isApproved) {
+                              badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                              stateLabel = "Approved";
+                            } else if (isChanges) {
+                              badgeColor = "bg-rose-50 text-rose-700 border-rose-200";
+                              stateLabel = "Changes Requested";
+                            } else if (isDismissed) {
+                              badgeColor = "bg-zinc-100 text-zinc-450 border-zinc-200";
+                              stateLabel = "Dismissed";
+                            } else if (rev.state === 'COMMENTED') {
+                              badgeColor = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                              stateLabel = "Commented";
+                            }
+
+                            return (
+                              <div key={i} className="flex flex-col bg-white border border-zinc-200/80 rounded-2xl shadow-sm overflow-hidden animate-fadeIn">
+                                <div className="bg-zinc-55 border-b border-zinc-100 px-4 py-2 flex items-center justify-between text-[11px] font-bold text-zinc-650 select-none">
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="text-zinc-600 font-semibold bg-zinc-100 px-2 py-0.5 rounded-md border border-zinc-200">@{rev.reviewer}</span>
+                                  </span>
+                                  <span className={`px-2.5 py-0.5 rounded-md border font-bold uppercase tracking-wider text-[9px] ${badgeColor}`}>
+                                    {stateLabel}
+                                  </span>
+                                </div>
+                                {rev.body && (
+                                  <div className="p-4 text-xs text-zinc-700 leading-relaxed font-normal max-h-[150px] overflow-y-auto">
+                                    {renderMarkdown(rev.body)}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
                     {discussionSummary.requestedChanges.length > 0 && (
                       <div className="space-y-2">
                         <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wider pl-1 block">Changes Requested:</span>

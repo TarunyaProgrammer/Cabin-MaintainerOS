@@ -156,6 +156,7 @@ export class ReviewPipeline {
       pendingReplies: [],
       resolvedDiscussions: 0,
       openConversations: 0,
+      reviewsList: [],
     };
 
     // Step 7: Repository Context Worker

@@ -255,7 +255,14 @@ export class DiscussionWorker {
       let openCount = 0;
 
       // Group reviews that requested changes
+      const reviewsList: any[] = [];
       for (const rev of reviews) {
+        reviewsList.push({
+          reviewer: rev.user?.login || 'unknown',
+          state: rev.state,
+          submittedAt: rev.submitted_at,
+          body: rev.body || undefined
+        });
         if (rev.state === 'CHANGES_REQUESTED') {
           requestedChanges.push(`Review by ${rev.user?.login}: ${rev.body || 'Please make fixes.'}`);
         }
@@ -295,6 +302,7 @@ export class DiscussionWorker {
           pendingReplies,
           resolvedDiscussions: resolvedCount,
           openConversations: openCount,
+          reviewsList,
         },
       };
     } catch (err: any) {
