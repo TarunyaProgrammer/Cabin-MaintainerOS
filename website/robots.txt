@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://tarunyaprogrammer.github.io/Cabin-MaintainerOS/sitemap.xml
