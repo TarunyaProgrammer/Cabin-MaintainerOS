@@ -35,6 +35,213 @@ function detectPlatform() {
   }
 }
 
+// ----------------------------------------------------
+// THREE.JS: Interactive 3D Commits/Network Particle Background
+// ----------------------------------------------------
+let scene, camera, renderer, particleSystem, linesObject;
+const particlesCount = 75;
+const particlesData = [];
+let positions, colors;
+let pointCloud, geom;
+const maxDistance = 90;
+let mouseX = 0, mouseY = 0;
+
+function initThreeBackground() {
+  const canvas = document.getElementById('three-canvas');
+  if (!canvas) return;
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0xf8fafc, 0.0015);
+
+  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 4000);
+  camera.position.z = 1000;
+
+  // Renderer settings
+  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const container = new THREE.Group();
+  scene.add(container);
+
+  // Particles Setup
+  const segments = particlesCount;
+  geom = new THREE.BufferGeometry();
+  positions = new Float32Array(segments * 3);
+  colors = new Float32Array(segments * 3);
+
+  const r = 400;
+
+  for (let i = 0; i < segments; i++) {
+    const x = Math.random() * r - r / 2;
+    const y = Math.random() * r - r / 2;
+    const z = Math.random() * r - r / 2;
+
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+
+    // Movement velocity speeds
+    particlesData.push({
+      velocity: new THREE.Vector3(-1 + Math.random() * 2, -1 + Math.random() * 2, -1 + Math.random() * 2),
+      numConnections: 0
+    });
+  }
+
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+
+  // Custom soft circular point canvas texture for cleaner points
+  const pMaterial = new THREE.PointsMaterial({
+    color: 0x10b981,
+    size: 5,
+    blending: THREE.NormalBlending,
+    transparent: true,
+    opacity: 0.8
+  });
+
+  pointCloud = new THREE.Points(geom, pMaterial);
+  container.add(pointCloud);
+
+  // Lines setup connecting particle nodes
+  const lineGeom = new THREE.BufferGeometry();
+  const linePositions = new Float32Array(segments * segments * 3);
+  const lineColors = new Float32Array(segments * segments * 3);
+
+  lineGeom.setAttribute('position', new THREE.BufferAttribute(linePositions, 3).setUsage(THREE.DynamicDrawUsage));
+  lineGeom.setAttribute('color', new THREE.BufferAttribute(lineColors, 3).setUsage(THREE.DynamicDrawUsage));
+
+  const lineMaterial = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    opacity: 0.15
+  });
+
+  linesObject = new THREE.LineSegments(lineGeom, lineMaterial);
+  container.add(linesObject);
+
+  // Interaction tracking
+  window.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX - window.innerWidth / 2) * 0.4;
+    mouseY = (e.clientY - window.innerHeight / 2) * 0.4;
+  });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // Animation Loop
+  function animate() {
+    requestAnimationFrame(animate);
+
+    // Camera mouse follow ease
+    camera.position.x += (mouseX - camera.position.x) * 0.05;
+    camera.position.y += (-mouseY - camera.position.y) * 0.05;
+    camera.lookAt(scene.position);
+
+    let vertexpos = 0;
+    let colorpos = 0;
+    let numConnected = 0;
+
+    for (let i = 0; i < segments; i++) {
+      particlesData[i].numConnections = 0;
+    }
+
+    const posAttr = geom.getAttribute('position');
+    const pArray = posAttr.array;
+
+    for (let i = 0; i < segments; i++) {
+      // Apply velocity drift
+      pArray[i * 3] += particlesData[i].velocity.x * 0.4;
+      pArray[i * 3 + 1] += particlesData[i].velocity.y * 0.4;
+      pArray[i * 3 + 2] += particlesData[i].velocity.z * 0.4;
+
+      // Bounce boundaries
+      const limit = r / 2;
+      if (pArray[i * 3] < -limit || pArray[i * 3] > limit) particlesData[i].velocity.x *= -1;
+      if (pArray[i * 3 + 1] < -limit || pArray[i * 3 + 1] > limit) particlesData[i].velocity.y *= -1;
+      if (pArray[i * 3 + 2] < -limit || pArray[i * 3 + 2] > limit) particlesData[i].velocity.z *= -1;
+
+      // Distance checking to draw links
+      for (let j = i + 1; j < segments; j++) {
+        const dx = pArray[i * 3] - pArray[j * 3];
+        const dy = pArray[i * 3 + 1] - pArray[j * 3 + 1];
+        const dz = pArray[i * 3 + 2] - pArray[j * 3 + 2];
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (dist < maxDistance) {
+          particlesData[i].numConnections++;
+          particlesData[j].numConnections++;
+
+          const alpha = 1.0 - dist / maxDistance;
+
+          const lPos = linesObject.geometry.getAttribute('position').array;
+          const lCol = linesObject.geometry.getAttribute('color').array;
+
+          lPos[vertexpos++] = pArray[i * 3];
+          lPos[vertexpos++] = pArray[i * 3 + 1];
+          lPos[vertexpos++] = pArray[i * 3 + 2];
+
+          lPos[vertexpos++] = pArray[j * 3];
+          lPos[vertexpos++] = pArray[j * 3 + 1];
+          lPos[vertexpos++] = pArray[j * 3 + 2];
+
+          // Faint soft line colors matching theme
+          lCol[colorpos++] = 0.1;
+          lCol[colorpos++] = 0.72 * alpha;
+          lCol[colorpos++] = 0.5 * alpha;
+
+          lCol[colorpos++] = 0.1;
+          lCol[colorpos++] = 0.72 * alpha;
+          lCol[colorpos++] = 0.5 * alpha;
+
+          numConnected++;
+        }
+      }
+    }
+
+    posAttr.needsUpdate = true;
+    linesObject.geometry.getAttribute('position').needsUpdate = true;
+    linesObject.geometry.getAttribute('color').needsUpdate = true;
+
+    linesObject.geometry.setDrawRange(0, numConnected * 2);
+
+    container.rotation.y += 0.001;
+    renderer.render(scene, camera);
+  }
+
+  animate();
+}
+
+// ----------------------------------------------------
+// GSAP SCROLLTRIGGER: Smooth entrance animations
+// ----------------------------------------------------
+function initScrollAnimations() {
+  if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
+  
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Reveal animations for cards, headers, and hero segments
+  document.querySelectorAll('.gsap-reveal').forEach((el) => {
+    gsap.fromTo(el, 
+      { opacity: 0, y: 30 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        ease: 'power2.out',
+        scrollTrigger: {
+          trigger: el,
+          start: 'top 85%',
+          toggleActions: 'play none none none'
+        }
+      }
+    );
+  });
+}
+
 // Simulated Pipeline Log Data
 const pipelineStepsLogs = [
   // Step 1: GitHubWorker
@@ -101,7 +308,7 @@ function runPipelineDemo(stepIndex) {
     }
   });
 
-  // Update Console Output with simulated typewriting/rendering
+  // Update Console Output
   const outputEl = document.getElementById('console-output-text');
   const percentageEl = document.getElementById('pipeline-progress-percentage');
   
@@ -158,6 +365,8 @@ function toggleAccordion(id) {
 // Init everything
 window.addEventListener('DOMContentLoaded', () => {
   detectPlatform();
+  initThreeBackground();
+  initScrollAnimations();
   runPipelineDemo(0);
   startPipelineAutoPlay();
   initStepListeners();

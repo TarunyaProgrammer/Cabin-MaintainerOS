@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Styled Lettermark C / Node Network -->
+  <defs>
+    <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+  </defs>
+  <!-- Background Shape -->
+  <rect width="200" height="200" rx="48" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <!-- Network Nodes -->
+  <path d="M60 100c0-22.09 17.91-40 40-40h20m20 0a20 20 0 11-20 20 20 20 0 0120-20z" stroke="url(#logo-grad)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M100 60c0 22.09 17.91 40 40 40" stroke="url(#logo-grad)" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="100" cy="100" r="16" fill="#10b981"/>
+  <circle cx="140" cy="60" r="12" fill="#3b82f6"/>
+  <circle cx="140" cy="140" r="12" fill="#10b981"/>
+  <path d="M100 100c0 22.09 17.91 40 40 40" stroke="url(#logo-grad)" stroke-width="12" stroke-linecap="round" stroke-dasharray="4 4"/>
+</svg>

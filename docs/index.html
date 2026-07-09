@@ -5,62 +5,99 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cabin - Local AI Pull Request Reviewer & Dashboard</title>
   <meta name="description" content="Review pull requests, verify CI, run local DCO checks, and authorize mergers directly from your desktop with Cabin.">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  
   <link rel="stylesheet" href="style.css">
-  <!-- Lucide Icons CDN -->
+  
+  <!-- External CDNs for animations and icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
 </head>
 <body>
-  <!-- Glow Blobs background -->
+  <!-- Three.js Interactive 3D Canvas Background -->
+  <canvas id="three-canvas"></canvas>
+
+  <!-- Glow Blobs backdrop -->
   <div class="glow-blob glow-green"></div>
   <div class="glow-blob glow-yellow"></div>
 
-  <!-- Sticky Header -->
+  <!-- Sticky Navigation Header -->
   <header>
     <div class="nav-container">
       <a href="#" class="logo" id="nav-logo">
-        <svg viewBox="0 0 200 200" fill="none">
-          <path d="M40 130h90v25H40zM80 85h45v45H80z" fill="#10b981" />
-          <path d="M125 100h20v30h-20z" fill="#047857" />
-          <path d="M80 85h5l15-30h20l10 30h5" stroke="#334155" strokeWidth="4" strokeLinecap="round" />
-          <path d="M100 55v30M110 55v30" stroke="#334155" strokeWidth="3" />
-          <circle cx="65" cy="155" r="22" fill="#1e293b" />
-          <circle cx="135" cy="155" r="22" fill="#1e293b" />
+        <svg viewBox="0 0 64 64" style="width:30px; height:30px; fill:none;">
+          <defs>
+            <linearGradient id="logo-grad-nav" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#10b981" />
+              <stop offset="100%" stop-color="#3b82f6" />
+            </linearGradient>
+          </defs>
+          <path d="M20 32c0-6.63 5.37-12 12-12h6m6 0a6 6 0 11-6 6 6 6 0 016-6z" stroke="url(#logo-grad-nav)" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="32" cy="32" r="6" fill="#10b981"/>
         </svg>
         <span>Cabin</span>
       </a>
       <nav class="nav-links">
         <a href="#features" class="nav-link" id="nav-features-link">Features</a>
-        <a href="#pipeline" class="nav-link" id="nav-pipeline-link">Review Pipeline</a>
-        <a href="#setup" class="nav-link" id="nav-setup-link">Setup Guide</a>
-        <a href="#" class="btn btn-secondary btn-nav-download" id="nav-download-btn">Download</a>
+        <a href="#pipeline" class="nav-link" id="nav-pipeline-link">Pipeline</a>
+        <a href="#setup" class="nav-link" id="nav-setup-link">Setup</a>
+        <a href="https://github.com/TarunyaProgrammer/Cabin-MaintainerOS" class="nav-link" target="_blank">
+          <i data-lucide="github" style="width:16px; height:16px; display:inline-block; vertical-align:middle;"></i>
+          GitHub
+        </a>
+        <a href="https://github.com/TarunyaProgrammer/Cabin-MaintainerOS/releases" class="btn btn-secondary btn-nav-download" id="nav-download-btn">Download</a>
       </nav>
     </div>
   </header>
 
   <main>
     <!-- Hero Section -->
-    <section class="hero">
+    <section class="hero gsap-reveal">
       <h1 id="hero-heading">Local code reviews, <span>supercharged by AI</span></h1>
       <p id="hero-subheading">
-        Diagnose code quality, audit security, check CI statuses, and run compliance pipelines locally on your machine with Cabin's developer desktop client.
+        Diagnose code quality, audit security compliance, check CI statuses, and automate merge permissions locally with Cabin's developer desktop client.
       </p>
       <div class="hero-cta">
-        <a href="#" class="btn btn-primary" id="hero-download-btn">
+        <a href="https://github.com/TarunyaProgrammer/Cabin-MaintainerOS/releases" class="btn btn-primary" id="hero-download-btn">
           <i data-lucide="download"></i>
           <span id="download-text">Download Cabin</span>
         </a>
         <a href="#pipeline" class="btn btn-secondary" id="hero-demo-btn">
           <i data-lucide="play-circle"></i>
-          <span>See How it Works</span>
+          <span>See Pipeline</span>
         </a>
       </div>
       <div class="platform-info" id="platform-info-text">
         Detecting operating system...
       </div>
+
+      <!-- Integrated Tech Badge Stack -->
+      <div class="tech-stack">
+        <div class="tech-badge">
+          <i data-lucide="terminal"></i>
+          <span>Electron + Node</span>
+        </div>
+        <div class="tech-badge">
+          <i data-lucide="database"></i>
+          <span>SQLite Caching</span>
+        </div>
+        <div class="tech-badge">
+          <i data-lucide="git-branch"></i>
+          <span>Git Integration</span>
+        </div>
+        <div class="tech-badge">
+          <i data-lucide="cpu"></i>
+          <span>Local LLMs</span>
+        </div>
+      </div>
     </section>
 
-    <!-- Mockup Preview Console -->
-    <section class="mockup-container" id="pipeline-mockup">
+    <!-- Interactive Pipeline Console -->
+    <section class="mockup-container gsap-reveal" id="pipeline">
       <div class="mockup-header">
         <div class="dots">
           <span class="dot dot-red"></span>
@@ -78,49 +115,49 @@
             <span class="step-num">1</span>
             <div class="step-info">
               <h4>GitHubWorker</h4>
-              <p>Fetch metadata & files</p>
+              <p>Metadata & files payload</p>
             </div>
           </div>
           <div class="step-card" data-step="1" id="step-card-1">
             <span class="step-num">2</span>
             <div class="step-info">
               <h4>GitWorker</h4>
-              <p>Checkout & merge refspec</p>
+              <p>Checkout & merge target</p>
             </div>
           </div>
           <div class="step-card" data-step="2" id="step-card-2">
             <span class="step-num">3</span>
             <div class="step-info">
               <h4>CIWorker</h4>
-              <p>Check actions & status</p>
+              <p>Evaluate action suites</p>
             </div>
           </div>
           <div class="step-card" data-step="3" id="step-card-3">
             <span class="step-num">4</span>
             <div class="step-info">
               <h4>MergeWorker</h4>
-              <p>Check git merge status</p>
+              <p>Conflict validation</p>
             </div>
           </div>
           <div class="step-card" data-step="4" id="step-card-4">
             <span class="step-num">5</span>
             <div class="step-info">
               <h4>DCOWorker</h4>
-              <p>Verify DCO signoffs</p>
+              <p>Sign-off audit compliance</p>
             </div>
           </div>
           <div class="step-card" data-step="5" id="step-card-5">
             <span class="step-num">6</span>
             <div class="step-info">
               <h4>DiscussionWorker</h4>
-              <p>Parse unresolved threads</p>
+              <p>Active thread reviews</p>
             </div>
           </div>
           <div class="step-card" data-step="6" id="step-card-6">
             <span class="step-num">7</span>
             <div class="step-info">
               <h4>ContextWorker</h4>
-              <p>Build LLM prompt payload</p>
+              <p>Build prompt context</p>
             </div>
           </div>
         </div>
@@ -130,58 +167,82 @@
           <div class="console-output" id="console-output-text">
             Initializing pipeline context...
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; border-top: 1px solid var(--border-glass); padding-top: 0.75rem; color: var(--text-dark); font-size: 0.75rem;">
-            <span>STATUS: RUNNING</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem; color: #64748b; font-size: 0.75rem;">
+            <span>STATUS: ACTIVE</span>
             <span id="pipeline-progress-percentage">0%</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Features Section -->
+    <!-- Expanded Features Grid Section -->
     <section class="features-section" id="features">
-      <h2 class="section-title">Designed for modern maintainers</h2>
+      <h2 class="section-title gsap-reveal">Production-Grade Infrastructure</h2>
       <div class="features-grid">
-        <!-- Feature 1 -->
-        <div class="feature-card" id="feature-card-ai">
+        <!-- Feature 1: AI Auditing -->
+        <div class="feature-card gsap-reveal" id="feature-card-ai">
           <div class="feature-icon">
             <i data-lucide="sparkles"></i>
           </div>
-          <h3>AI-Powered Reviews</h3>
-          <p>Deploy local or cloud LLMs to critique pull request changes, verify code quality, catch accessibility flaws, and identify security loopholes.</p>
+          <h3>Local AI Review Engine</h3>
+          <p>Configure custom LLMs locally to check pull requests. Scan for performance blocks, coding patterns, accessibility parameters, and security vulnerabilities without leakages.</p>
         </div>
-        <!-- Feature 2 -->
-        <div class="feature-card" id="feature-card-git">
+        <!-- Feature 2: Workspace Sandbox -->
+        <div class="feature-card gsap-reveal" id="feature-card-git">
           <div class="feature-icon">
             <i data-lucide="git-branch"></i>
           </div>
-          <h3>Local Workspace Testing</h3>
-          <p>Direct integration with simple-git and local worktrees to check out and merge code locally before deciding whether to approve.</p>
+          <h3>Integrated Git Sandbox</h3>
+          <p>Syncs branch states using localized worktrees. Automatically check out pull requests and compile tests locally before making approval decisions.</p>
         </div>
-        <!-- Feature 3 -->
-        <div class="feature-card" id="feature-card-db">
+        <!-- Feature 3: Offline History -->
+        <div class="feature-card gsap-reveal" id="feature-card-db">
           <div class="feature-icon">
             <i data-lucide="database"></i>
           </div>
-          <h3>Offline sqlite3 History</h3>
-          <p>Every review, log file, pipeline result, and AI decision is persisted locally in an encrypted database so you retain a complete history.</p>
+          <h3>Offline SQLite Caching</h3>
+          <p>Saves all reviews, discussions, log cycles, and setting files inside a structured SQLite database. Fast, secure, and fully indexable.</p>
+        </div>
+        <!-- Feature 4: Security Audits -->
+        <div class="feature-card gsap-reveal" id="feature-card-security">
+          <div class="feature-icon">
+            <i data-lucide="shield-check"></i>
+          </div>
+          <h3>DCO & Compliance Audit</h3>
+          <p>Enforce developer certificate sign-offs (DCO) and scan commits for security guidelines on the fly prior to merge authorizations.</p>
+        </div>
+        <!-- Feature 5: Discussion Thread Aggregation -->
+        <div class="feature-card gsap-reveal" id="feature-card-discussion">
+          <div class="feature-icon">
+            <i data-lucide="message-square"></i>
+          </div>
+          <h3>Conversation Aggregator</h3>
+          <p>Pulls unresolved comments and review questions directly from GitHub, providing a unified list of discussion items needing attention.</p>
+        </div>
+        <!-- Feature 6: Dashboard Statistics -->
+        <div class="feature-card gsap-reveal" id="feature-card-stats">
+          <div class="feature-icon">
+            <i data-lucide="bar-chart-3"></i>
+          </div>
+          <h3>Maintainer Analytics</h3>
+          <p>Track metrics such as average review duration, branch approval distributions, and sync loops loops through the desktop visual dashboard.</p>
         </div>
       </div>
     </section>
 
     <!-- Setup accordion -->
-    <section class="setup-section" id="setup">
-      <h2 class="section-title">Setup & Install Guidelines</h2>
+    <section class="setup-section gsap-reveal" id="setup">
+      <h2 class="section-title">Setup Guidelines</h2>
       
       <div class="accordion-item" id="accordion-macos">
         <button class="accordion-trigger" onclick="toggleAccordion('accordion-macos')">
-          <span>How do I open Cabin on macOS?</span>
+          <span>How do I install Cabin on macOS?</span>
           <i data-lucide="chevron-down"></i>
         </button>
         <div class="accordion-content">
           <p>Standard installation procedure for macOS:</p>
           <ol>
-            <li>Download the latest release for macOS.</li>
+            <li>Download the latest release DMG from the GitHub Releases dashboard.</li>
             <li>Drag the Cabin icon into your <b>Applications</b> folder.</li>
             <li>Launch the application from your Applications folder or Spotlight.</li>
           </ol>
@@ -196,7 +257,7 @@
         <div class="accordion-content">
           <p>Standard setup procedure for Windows:</p>
           <ol>
-            <li>Download the setup installer for Windows.</li>
+            <li>Download the setup installer for Windows from GitHub Releases.</li>
             <li>Run the installer and follow the on-screen setup prompts.</li>
             <li>Launch Cabin from the Start Menu or desktop shortcut.</li>
           </ol>
@@ -205,13 +266,39 @@
     </section>
   </main>
 
+  <!-- Improved minimalist Footer -->
   <footer>
-    <p>&copy; 2026 Cabin Startup. Devised for developer productivity.</p>
+    <div class="footer-container">
+      <a href="#" class="footer-logo">
+        <svg viewBox="0 0 64 64" style="fill:none; width:20px; height:20px; display:inline-block; vertical-align:middle; margin-right:4px;">
+          <path d="M20 32c0-6.63 5.37-12 12-12h6m6 0a6 6 0 11-6 6 6 6 0 016-6z" stroke="#10b981" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="32" cy="32" r="6" fill="#10b981"/>
+        </svg>
+        <span>Cabin Desktop</span>
+      </a>
+      <div class="footer-links">
+        <a href="https://github.com/TarunyaProgrammer" target="_blank" class="footer-link">
+          <i data-lucide="user"></i>
+          <span>GitHub Profile</span>
+        </a>
+        <a href="https://github.com/TarunyaProgrammer/Cabin-MaintainerOS" target="_blank" class="footer-link">
+          <i data-lucide="github"></i>
+          <span>Repository</span>
+        </a>
+        <a href="https://github.com/TarunyaProgrammer/Cabin-MaintainerOS/releases" target="_blank" class="footer-link">
+          <i data-lucide="package"></i>
+          <span>Releases</span>
+        </a>
+      </div>
+      <div class="footer-copyright">
+        &copy; 2026 Cabin Startup. Crafted for developer velocity and local code audits.
+      </div>
+    </div>
   </footer>
 
   <script src="app.js"></script>
   <script>
-    // Initialize Lucide icons on load
+    // Initialize Lucide icons
     lucide.createIcons();
   </script>
 </body>
