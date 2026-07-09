@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cabin - Local AI Pull Request Reviewer & Dashboard</title>
+  <meta name="description" content="Review pull requests, verify CI, run local DCO checks, and authorize mergers directly from your desktop with Cabin.">
+  <link rel="stylesheet" href="style.css">
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <!-- Glow Blobs background -->
+  <div class="glow-blob glow-green"></div>
+  <div class="glow-blob glow-yellow"></div>
+
+  <!-- Sticky Header -->
+  <header>
+    <div class="nav-container">
+      <a href="#" class="logo" id="nav-logo">
+        <svg viewBox="0 0 200 200" fill="none">
+          <path d="M40 130h90v25H40zM80 85h45v45H80z" fill="#10b981" />
+          <path d="M125 100h20v30h-20z" fill="#047857" />
+          <path d="M80 85h5l15-30h20l10 30h5" stroke="#334155" strokeWidth="4" strokeLinecap="round" />
+          <path d="M100 55v30M110 55v30" stroke="#334155" strokeWidth="3" />
+          <circle cx="65" cy="155" r="22" fill="#1e293b" />
+          <circle cx="135" cy="155" r="22" fill="#1e293b" />
+        </svg>
+        <span>Cabin</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features" class="nav-link" id="nav-features-link">Features</a>
+        <a href="#pipeline" class="nav-link" id="nav-pipeline-link">Review Pipeline</a>
+        <a href="#setup" class="nav-link" id="nav-setup-link">Setup Guide</a>
+        <a href="#" class="btn btn-secondary btn-nav-download" id="nav-download-btn">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <h1 id="hero-heading">Local code reviews, <span>supercharged by AI</span></h1>
+      <p id="hero-subheading">
+        Diagnose code quality, audit security, check CI statuses, and run compliance pipelines locally on your machine with Cabin's developer desktop client.
+      </p>
+      <div class="hero-cta">
+        <a href="#" class="btn btn-primary" id="hero-download-btn">
+          <i data-lucide="download"></i>
+          <span id="download-text">Download Cabin</span>
+        </a>
+        <a href="#pipeline" class="btn btn-secondary" id="hero-demo-btn">
+          <i data-lucide="play-circle"></i>
+          <span>See How it Works</span>
+        </a>
+      </div>
+      <div class="platform-info" id="platform-info-text">
+        Detecting operating system...
+      </div>
+    </section>
+
+    <!-- Mockup Preview Console -->
+    <section class="mockup-container" id="pipeline-mockup">
+      <div class="mockup-header">
+        <div class="dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <div class="mockup-title">cabin-pipeline-orchestrator</div>
+        <div style="width: 48px;"></div>
+      </div>
+      
+      <div class="mockup-body">
+        <!-- Sidebar steps -->
+        <div class="pipeline-steps" id="pipeline-steps-list">
+          <div class="step-card active" data-step="0" id="step-card-0">
+            <span class="step-num">1</span>
+            <div class="step-info">
+              <h4>GitHubWorker</h4>
+              <p>Fetch metadata & files</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="1" id="step-card-1">
+            <span class="step-num">2</span>
+            <div class="step-info">
+              <h4>GitWorker</h4>
+              <p>Checkout & merge refspec</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="2" id="step-card-2">
+            <span class="step-num">3</span>
+            <div class="step-info">
+              <h4>CIWorker</h4>
+              <p>Check actions & status</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="3" id="step-card-3">
+            <span class="step-num">4</span>
+            <div class="step-info">
+              <h4>MergeWorker</h4>
+              <p>Check git merge status</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="4" id="step-card-4">
+            <span class="step-num">5</span>
+            <div class="step-info">
+              <h4>DCOWorker</h4>
+              <p>Verify DCO signoffs</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="5" id="step-card-5">
+            <span class="step-num">6</span>
+            <div class="step-info">
+              <h4>DiscussionWorker</h4>
+              <p>Parse unresolved threads</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="6" id="step-card-6">
+            <span class="step-num">7</span>
+            <div class="step-info">
+              <h4>ContextWorker</h4>
+              <p>Build LLM prompt payload</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal Output -->
+        <div class="console-panel">
+          <div class="console-output" id="console-output-text">
+            Initializing pipeline context...
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; border-top: 1px solid var(--border-glass); padding-top: 0.75rem; color: var(--text-dark); font-size: 0.75rem;">
+            <span>STATUS: RUNNING</span>
+            <span id="pipeline-progress-percentage">0%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features-section" id="features">
+      <h2 class="section-title">Designed for modern maintainers</h2>
+      <div class="features-grid">
+        <!-- Feature 1 -->
+        <div class="feature-card" id="feature-card-ai">
+          <div class="feature-icon">
+            <i data-lucide="sparkles"></i>
+          </div>
+          <h3>AI-Powered Reviews</h3>
+          <p>Deploy local or cloud LLMs to critique pull request changes, verify code quality, catch accessibility flaws, and identify security loopholes.</p>
+        </div>
+        <!-- Feature 2 -->
+        <div class="feature-card" id="feature-card-git">
+          <div class="feature-icon">
+            <i data-lucide="git-branch"></i>
+          </div>
+          <h3>Local Workspace Testing</h3>
+          <p>Direct integration with simple-git and local worktrees to check out and merge code locally before deciding whether to approve.</p>
+        </div>
+        <!-- Feature 3 -->
+        <div class="feature-card" id="feature-card-db">
+          <div class="feature-icon">
+            <i data-lucide="database"></i>
+          </div>
+          <h3>Offline sqlite3 History</h3>
+          <p>Every review, log file, pipeline result, and AI decision is persisted locally in an encrypted database so you retain a complete history.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Setup accordion -->
+    <section class="setup-section" id="setup">
+      <h2 class="section-title">Setup & Install Guidelines</h2>
+      
+      <div class="accordion-item" id="accordion-macos">
+        <button class="accordion-trigger" onclick="toggleAccordion('accordion-macos')">
+          <span>How do I open Cabin on macOS?</span>
+          <i data-lucide="chevron-down"></i>
+        </button>
+        <div class="accordion-content">
+          <p>Because Cabin is released directly to developers, it is not yet registered in the App Store.</p>
+          <ol>
+            <li>Download the <code>.dmg</code> or <code>.zip</code> file.</li>
+            <li>Drag Cabin to your <b>Applications</b> folder.</li>
+            <li>Right-click the icon and choose <b>Open</b> (do not double-click directly).</li>
+            <li>Click <b>Open anyway</b> on the system security alert prompt.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="accordion-item" id="accordion-windows">
+        <button class="accordion-trigger" onclick="toggleAccordion('accordion-windows')">
+          <span>How do I install Cabin on Windows?</span>
+          <i data-lucide="chevron-down"></i>
+        </button>
+        <div class="accordion-content">
+          <ol>
+            <li>Download the Cabin Setup <code>.exe</code> file.</li>
+            <li>Run the installer.</li>
+            <li>If Windows SmartScreen warns you that it is an unrecognized app, click <b>More Info</b> and then select <b>Run Anyway</b>.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Cabin Startup. Devised for developer productivity.</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    // Initialize Lucide icons on load
+    lucide.createIcons();
+  </script>
+</body>
+</html>
