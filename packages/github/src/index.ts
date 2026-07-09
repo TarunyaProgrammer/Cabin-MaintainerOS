@@ -137,18 +137,24 @@ export class GitHubService {
 
       // Check if user is explicitly requested to review (e.g. for re-reviews)
       const isReviewRequested = prDetail.requested_reviewers?.some((r: any) => r.login === username) || false;
+      const isAssignee = prDetail.assignees?.some((a: any) => a.login === username) || false;
 
       // Fresh activity rule:
       // Include if:
       // 1. User has never interacted yet (latestUserActionTime === 0).
       // 2. OR someone else submitted a review, comment, or commit after user's latest interaction.
       // 3. OR the user is explicitly requested to review/re-review the PR.
-      const hasFreshActivity = latestUserActionTime === 0 || latestOtherActionTime > latestUserActionTime || isReviewRequested;
+      // 4. OR the user is assigned to the PR.
+      const hasFreshActivity = latestUserActionTime === 0 || 
+                               latestOtherActionTime > latestUserActionTime || 
+                               isReviewRequested || 
+                               isAssignee;
 
-      // Exclude stale PRs (inactive for >30 days) to prevent backlog clutter
+      // Exclude stale PRs (inactive for >30 days) to prevent backlog clutter,
+      // but do NOT exclude if the user is a requested reviewer or assignee.
       const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const lastActiveTime = Math.max(latestUserActionTime, latestOtherActionTime);
-      const isStale = lastActiveTime < thirtyDaysAgo;
+      const isStale = lastActiveTime < thirtyDaysAgo && !isReviewRequested && !isAssignee;
 
       if (hasFreshActivity && !isStale) {
         const ciStatus = await this.getQuickCIStatus(owner, repo, prDetail.head.sha);

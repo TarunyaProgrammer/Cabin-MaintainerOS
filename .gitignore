@@ -5,6 +5,8 @@ web_modules/
 
 # Build outputs
 dist/
+dist-bin/
+apps/desktop/dist-bin/
 build/
 out/
 .docusaurus/

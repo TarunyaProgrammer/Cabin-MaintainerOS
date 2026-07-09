@@ -142,9 +142,20 @@ function setupIpcHandlers() {
     return await db.getReviewSessions();
   });
 
-  // Fetch pending review requests (returns cache instantly, syncs in background)
+  // Fetch pending review requests (returns cache instantly, syncs in background unless forced)
   ipcMain.handle('github:fetch-pending', async (_event: any, force?: boolean): Promise<any[]> => {
     if (!db) throw new Error('Database not initialized');
+    
+    if (force) {
+      // For manual refresh, perform sync synchronously so that loader is active and returns latest
+      try {
+        const freshPRs = await syncPendingReviews(true);
+        return freshPRs;
+      } catch (err) {
+        console.error('[IPC github:fetch-pending] Sync failed:', err);
+        return await db.getCachedPullRequests();
+      }
+    }
     
     // Return cached PRs immediately
     const cachedPRs = await db.getCachedPullRequests();
@@ -513,10 +524,10 @@ app.whenReady().then(async () => {
     syncPendingReviews(false).catch(() => {});
   }, 3000);
 
-  // Set up background sync every 30 minutes
+  // Set up background sync every 10 minutes
   setInterval(() => {
     syncPendingReviews(false).catch(() => {});
-  }, 30 * 60 * 1000);
+  }, 10 * 60 * 1000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

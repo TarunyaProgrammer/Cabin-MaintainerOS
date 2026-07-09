@@ -231,6 +231,17 @@ export class CabinDatabase {
 
   async saveCachedPullRequests(prs: PullRequest[]): Promise<void> {
     const db = this.getDb();
+    
+    // Load currently cached PRs to preserve non-default review_status and ai_status
+    const existingRows = await db.all<any[]>('SELECT id, review_status, ai_status FROM cached_pull_requests');
+    const existingStatusMap = new Map<string, { reviewStatus: string; aiStatus: string }>();
+    for (const row of existingRows) {
+      existingStatusMap.set(row.id, {
+        reviewStatus: row.review_status,
+        aiStatus: row.ai_status,
+      });
+    }
+
     await db.run('DELETE FROM cached_pull_requests');
     
     // Deduplicate pull requests to prevent UNIQUE constraint errors
@@ -247,6 +258,10 @@ export class CabinDatabase {
     `);
 
     for (const pr of uniquePrs) {
+      const existing = existingStatusMap.get(pr.id);
+      const reviewStatus = existing && existing.reviewStatus !== 'pending' ? existing.reviewStatus : pr.reviewStatus;
+      const aiStatus = existing && existing.aiStatus !== 'pending' ? existing.aiStatus : pr.aiStatus;
+
       await stmt.run(
         pr.id,
         pr.prNumber,
@@ -262,8 +277,8 @@ export class CabinDatabase {
         pr.mergeConflictStatus,
         pr.dcoStatus,
         pr.lastUpdated,
-        pr.aiStatus,
-        pr.reviewStatus,
+        aiStatus,
+        reviewStatus,
         pr.branchName,
         pr.targetBranch,
         pr.description || null,
