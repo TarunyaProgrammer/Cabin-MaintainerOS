@@ -7,27 +7,18 @@ function detectPlatform() {
   const navDownloadBtn = document.getElementById('nav-download-btn');
 
   let os = 'Unknown OS';
-  let downloadUrl = 'https://github.com/TarunyaProgrammer/Cabin-MaintainerOS/releases/latest';
-  let badgeText = 'Download Latest Release';
+  let downloadUrl = 'https://github.com/TarunyaProgrammer/Cabin-MaintainerOS/releases';
+  let badgeText = 'View Latest Release';
 
   if (userAgent.indexOf('mac') !== -1) {
     os = 'macOS';
-    // Check for Apple Silicon vs Intel
-    if (navigator.userAgentData && navigator.userAgentData.brands) {
-      // Modern high-level API check if available
-      badgeText = 'Download for macOS (Apple Silicon)';
-    } else {
-      badgeText = 'Download for macOS (.dmg)';
-    }
-    downloadUrl = 'https://github.com/TarunyaProgrammer/Cabin-MaintainerOS/releases/latest/download/Cabin-macOS.dmg';
+    badgeText = 'Download for macOS';
   } else if (userAgent.indexOf('win') !== -1) {
     os = 'Windows';
-    badgeText = 'Download for Windows (.exe)';
-    downloadUrl = 'https://github.com/TarunyaProgrammer/Cabin-MaintainerOS/releases/latest/download/Cabin-Setup.exe';
+    badgeText = 'Download for Windows';
   } else if (userAgent.indexOf('linux') !== -1) {
     os = 'Linux';
-    badgeText = 'Download for Linux (.AppImage)';
-    downloadUrl = 'https://github.com/TarunyaProgrammer/Cabin-MaintainerOS/releases/latest/download/Cabin.AppImage';
+    badgeText = 'Download for Linux';
   }
 
   if (platformInfo) {
