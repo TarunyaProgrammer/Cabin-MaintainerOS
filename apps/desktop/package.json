@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "AI-powered code review desktop app for open source maintainers",
   "author": "TarunyaProgrammer <https://github.com/TarunyaProgrammer>",
+  "homepage": "https://github.com/TarunyaProgrammer/Cabin-MaintainerOS",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
